@@ -1,5 +1,5 @@
 import pygame
-from graphalama.maths import Pos
+
 
 def clip(x, mini, maxi):
     if maxi < mini:

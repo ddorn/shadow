@@ -5,12 +5,10 @@ import pygame
 from graphalama.maths import Pos
 
 from maths import cast_shadow
-from vfx import limit_visibility
+from vfx import limit_visibility, np_limit_visibility
 
 pygame.init()
 pygame.key.set_repeat(50, 20)
-
-SIGHT = 200
 
 def plateforme(x, y, size):
     x1 = x - size / 2
@@ -31,103 +29,100 @@ def carre(x, y, side):
     )
 
 
-def create_walls(screensize):
-    # lots of squares
-
-    # for x in range(5):
-    #     for y in range(5):
-    #         topx = 200 + 80 * x
-    #         topy = 50 + 80 * y
-    #         walls.append(((topx, topy),
-    #                      (topx + 40, topy),
-    #                      (topx + 40, topy + 40),
-    #                      (topx, topy + 40)))
-
-    return [
-        ((0, 0), (0, screensize[1]), screensize, (screensize[0], 0)),
-        plateforme(100, 100, 60),
-        plateforme(400, 200, 100),
-        plateforme(300, 400, 80),
-        plateforme(600, 300, 200)
-    ]
-
 
 def main():
     """Sexy shadows"""
 
-    LIGHT_COLOR = (200, 180, 100)
-    SIGHT = 300
-
-    # pygame stuff
-    screensize = (800, 500)
-    display = pygame.display.set_mode(screensize)
-    clock = pygame.time.Clock()
-
-    # mygame stuff
-    walls = create_walls(screensize)
-    # mask = light_mask(SIGHT)
-
     wig = (0, 0)
     wiggle = ((-1, 0), (0, 1), (1, 0), (0, -1))
 
-    frame = 0
     while True:
-        frame += 1
-
-        # update
-        for e in pygame.event.get():
-            # quit
-            if e.type == pygame.QUIT:
-                return
-            if e.type == pygame.KEYDOWN:
-                if e.key == pygame.K_ESCAPE:
-                    return
 
         if frame % 10 == 1:
             # every 10 frame
             wig = choice(wiggle)
         mouse = Pos(pygame.mouse.get_pos()) + wig
 
-        # logic
 
-        visible_poly = cast_shadow(walls, mouse)
+SCREEN_SIZE = (800, 500)
+LIGHT_COLOR = (200, 180, 100)
+SHADOW_COLOR = (20, 70, 80)
+SIGHT = 300
 
-        # surface with the what you can see
-        visible = pygame.Surface(display.get_size(), pygame.SRCALPHA)
-        pygame.draw.polygon(visible, LIGHT_COLOR, visible_poly)
-        # blured(visible, 4)
-        # blured_visi = blured(visible, 20)
-        # pygame.draw.polygon(visible, (255, 165, 0), visible_poly)
-        # visible.blit(blured(visible), (0, 0))
-        # visible = blured_visi
+class App:
+    FPS = 60
 
-        # for poly in walls[1:]:  # without the box
-        #     pygame.draw.polygon(visible, (255, 255, 255), poly)
+    def __init__(self):
+        self.display = pygame.display.set_mode(SCREEN_SIZE)  # type: pygame.Surface
+        self.back_screen = pygame.Surface(self.display.get_size(), pygame.SRCALPHA)
+        self.clock = pygame.time.Clock()
+        self.walls = self.create_walls(SCREEN_SIZE)
+        self.frame = 0
+        self.stop = False
+        self.pos = (0, 0)
 
-        delta = mouse - (SIGHT, SIGHT)
-        # mask = limit of vision + effects
-        # now limited to what you can see
-        # m.blit(visible, -delta, None, pygame.BLEND_RGBA_MIN)
-        # m = blured(m)
+    def run(self):
+        while not self.stop:
+            self.frame += 1
 
-        # s.blit(mask, (0, 0), None, pygame.BLEND_RGBA_MIN)
+            self.event_loop()
+            self.update()
 
-        limit_visibility(visible, mouse, SIGHT, frame // 5 % 8)
-        display.fill((20, 30, 40))
-        display.blit(visible, (0, 0))
+            self.render(self.back_screen)
+            self.do_shadow()
 
-        # render
-        # pygame.draw.polygon(display, (255, 165, 0), inters)
-        # display.blit(m, delta)
-        # display.blit(s, (mouse[0] - 150, mouse[1] - 150))
-        # for poly in walls[1:]:
-        #     pygame.draw.aalines(display, (255, 0, 0), True, poly)
-        # for inter in inters:
-        #     pygame.draw.line(display, (255, 255, 255), mouse, inter)
-        pygame.display.update()
-        clock.tick(60)
-        print(round(clock.get_fps()))
+            pygame.display.update()
+            self.clock.tick(self.FPS)
+            print("FPS:", round(self.clock.get_fps()), end='\r')
+
+    def event_loop(self):
+        for e in pygame.event.get():
+            # quit
+            if e.type == pygame.QUIT:
+                self.stop = True
+            if e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_ESCAPE:
+                    self.stop = True
+
+        self.pos = pygame.mouse.get_pos()
+
+    def update(self):
+        pass
+
+    def render(self, surf):
+        surf.fill(LIGHT_COLOR)
+        # platforms
+        for poly in self.walls[1:]:  # without the box
+            pygame.draw.polygon(surf, (255, 255, 255), poly)
+
+    def do_shadow(self):
+        visible_poly = cast_shadow(self.walls, self.pos)
+        np_limit_visibility(self.back_screen, visible_poly, self.pos, SIGHT)
+        self.display.fill(SHADOW_COLOR)
+        self.display.blit(self.back_screen, (0, 0))
+
+
+    def create_walls(self, screensize):
+        # lots of squares
+
+        # for x in range(5):
+        #     for y in range(5):
+        #         topx = 200 + 80 * x
+        #         topy = 50 + 80 * y
+        #         walls.append(((topx, topy),
+        #                      (topx + 40, topy),
+        #                      (topx + 40, topy + 40),
+        #                      (topx, topy + 40)))
+
+        return [
+            ((0, 0), (0, screensize[1] - 1), (screensize[0] - 1, screensize[1] - 1), (screensize[0] - 1, 0)),
+            plateforme(100, 100, 60),
+            plateforme(400, 200, 100),
+            plateforme(300, 400, 80),
+            plateforme(600, 300, 200)
+        ]
 
 
 if __name__ == '__main__':
+    App().run()
     main()
