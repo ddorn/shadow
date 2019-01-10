@@ -68,6 +68,7 @@ def np_limit_visibility(surf: pygame.Surface, visible_poly, view_point, sight_ra
     viewpoint: position of the light
     sight_range: intensity of the light (max range where we can see
     variant: light is randomly generated and cached, change variant to generate an other one
+    :return: a rect of the area where there is light
     """
 
     # alpha chanel of the texture
@@ -99,8 +100,5 @@ def np_limit_visibility(surf: pygame.Surface, visible_poly, view_point, sight_ra
     alpha[:] = 0
     # add the light
     np_blit(alpha, light_mask, topleft)
-    # subtract invisible
-    # alpha[invisible] = 0
 
-    # though we do not blur the whole thing as it would cost too much, we only blur where we d
-    # alpha[:] = scipy.ndimage.filters.uniform_filter(alpha, 20)
+    return pygame.Rect(topleft, (2*sight_range, 2*sight_range))

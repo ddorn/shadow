@@ -92,11 +92,13 @@ class App:
         self.player.render(surf)
 
     def do_shadow(self):
+        self.display.fill(SHADOW_COLOR)
         if self.ENABLE_SHADOW:
             visible_poly = cast_shadow(self.walls, self.player.pos)
-            np_limit_visibility(self.back_screen, visible_poly, self.player.pos, self.sight, self.frame // 5 % 8)
-        self.display.fill(SHADOW_COLOR)
-        self.display.blit(self.back_screen, (0, 0))
+            rect = np_limit_visibility(self.back_screen, visible_poly, self.player.pos, self.sight, self.frame // 5 % 8)
+            self.display.blit(self.back_screen, rect.topleft, rect)
+        else:
+            self.display.blit(self.back_screen, (0, 0))
 
 
     def create_walls(self, screensize):
