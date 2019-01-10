@@ -81,7 +81,7 @@ def np_limit_visibility(surf: pygame.Surface, visible_poly, view_point, sight_ra
     poly_surf.fill((255, 255, 255))
     # later we'll want to remove what we can see, so what we do see is 0, the rest is true
     pygame.draw.polygon(poly_surf, (0, 0, 0), visible_poly)
-    invisible = pygame.surfarray.array2d(poly_surf).astype(np.bool)
+    invisible = pygame.surfarray.pixels2d(poly_surf).astype(np.bool)
 
     # intensity of light that should reach a given point
     light_mask = np_light_mask(sight_range, variant).copy()
