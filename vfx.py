@@ -27,7 +27,7 @@ def np_blit_rect(dest, surf, pos):
     sw, sh = surf.shape
 
     # blit start position (on dest)
-    x, y = pos
+    x, y = map(int, pos)
     # blit end pos (on dest)
     bex, bey = x + sw, y + sh
 
