@@ -12,42 +12,14 @@ def np_light_mask(radius, variant=0):
     mask = np.zeros((2 * radius, 2 * radius), dtype=np.uint8)
     """Generate a random mask of the area a light lights"""
 
-    xs = truncnorm.rvs(a=-4, b=4, loc=radius, scale=radius/4, size=3*radius ** 2).astype(np.int)
-    ys = truncnorm.rvs(a=-4, b=4, loc=radius, scale=radius/4, size=3*radius**2).astype(np.int)
+    xs = truncnorm.rvs(a=-4, b=4, loc=radius, scale=radius / 4, size=3 * radius ** 2).astype(np.int)
+    ys = truncnorm.rvs(a=-4, b=4, loc=radius, scale=radius / 4, size=3 * radius ** 2).astype(np.int)
 
     mask[xs, ys] = 255
 
     mask = scipy.ndimage.filters.gaussian_filter(mask, 7)
 
     return mask
-
-
-def limit_visibility(visible_surf, view_point, range=100, variant=0):
-    mask = np_light_mask(range, variant)
-    alpha = pygame.surfarray.pixels_alpha(visible_surf)
-    w, h = alpha.shape
-
-    blitx, blity = view_point[0] - range, view_point[1] - range
-    blitendx, blitendy = view_point[0] + range, view_point[1] + range
-
-    sx = sy = 0
-    if blitx < 0:
-        sx = -blitx
-        blitx = 0
-    if blity < 0:
-        sy = -blity
-        blity = 0
-
-    if w < blitendx:
-        blitendx = w
-    if h < blitendy:
-        blitendy = h
-
-    ex = sx + (blitendx - blitx)
-    ey = sy + (blitendy - blity)
-
-    alpha[:] = 0
-    alpha[blitx:blitendx, blity:blitendy] = mask[sx:ex, sy:ey]
 
 
 def np_blit_rect(dest, surf, pos):
@@ -79,9 +51,13 @@ def np_blit_rect(dest, surf, pos):
     ex = sx + (bex - x)
     ey = sy + (bey - y)
 
-    # and we would blit like that
-    dest[x:bex, y:bey] = surf[sx:ex, sy:ey]
-    # return x, bex, y, bey, sx, ex, sy, ey
+    return x, bex, y, bey, sx, ex, sy, ey
+
+
+def np_blit(dest, surf, pos):
+
+    x1, x2, y1, y2, a1, a2, b1, b2 = np_blit_rect(dest, surf, pos)
+    dest[x1:x2, y1:y2] = surf[a1:a2, b1:b2]
 
 
 def np_limit_visibility(surf: pygame.Surface, visible_poly, view_point, sight_range=100, variant=0):
@@ -107,20 +83,24 @@ def np_limit_visibility(surf: pygame.Surface, visible_poly, view_point, sight_ra
     invisible = pygame.surfarray.array2d(poly_surf).astype(np.bool)
 
     # intensity of light that should reach a given point
-    light_mask = np_light_mask(sight_range, variant)
+    light_mask = np_light_mask(sight_range, variant).copy()
 
-    # remove what we can not see from the light
-    # we basically do a AND between the light and what's visible
     topleft = (view_point[0] - sight_range,
                view_point[1] - sight_range)
+    # we remove the invisible from the mask
+    x1, x2, y1, y2, a1, a2, b1, b2 = np_blit_rect(light_mask, invisible, (-topleft[0], -topleft[1]))
+    # this ugly line is just light_mask[where its invisible] = 0
+    # but taking account of the border
+    light_mask[x1:x2, y1:y2][invisible[a1:a2, b1:b2]] = 0
+    # and we blur the light so the edges appear, and it's not sharp (bleeding effect)
+    light_mask = scipy.ndimage.uniform_filter(light_mask, 20)
+
     # zero it
     alpha[:] = 0
     # add the light
-    np_blit_rect(alpha, light_mask, topleft)
+    np_blit(alpha, light_mask, topleft)
     # subtract invisible
-    alpha[invisible] = 0
+    # alpha[invisible] = 0
 
-    # we blur it so the edges appear, and it's not sharp
-    alpha[:] = scipy.ndimage.filters.uniform_filter(alpha, 20)
-
-
+    # though we do not blur the whole thing as it would cost too much, we only blur where we d
+    # alpha[:] = scipy.ndimage.filters.uniform_filter(alpha, 20)

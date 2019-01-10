@@ -5,7 +5,7 @@ import pygame
 from graphalama.maths import Pos
 
 from maths import cast_shadow
-from vfx import limit_visibility, np_limit_visibility
+from vfx import np_limit_visibility
 
 pygame.init()
 pygame.key.set_repeat(50, 20)
@@ -29,7 +29,6 @@ def carre(x, y, side):
     )
 
 
-
 def main():
     """Sexy shadows"""
 
@@ -45,18 +44,21 @@ def main():
 
 
 SCREEN_SIZE = (800, 500)
+SCREEN_SIZE = (1920, 1080)
 LIGHT_COLOR = (200, 180, 100)
 SHADOW_COLOR = (20, 70, 80)
 SIGHT = 300
 
 class App:
     FPS = 60
+    ENABLE_SHADOW = True
 
     def __init__(self):
         self.display = pygame.display.set_mode(SCREEN_SIZE)  # type: pygame.Surface
         self.back_screen = pygame.Surface(self.display.get_size(), pygame.SRCALPHA)
         self.clock = pygame.time.Clock()
         self.walls = self.create_walls(SCREEN_SIZE)
+        self.sight = SIGHT
         self.frame = 0
         self.stop = False
         self.pos = (0, 0)
@@ -83,11 +85,16 @@ class App:
             if e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_ESCAPE:
                     self.stop = True
+                elif e.key == pygame.K_t:
+                    self.ENABLE_SHADOW = not self.ENABLE_SHADOW
 
         self.pos = pygame.mouse.get_pos()
 
     def update(self):
-        pass
+        i = self.frame % 60
+        if i < 10:
+            i //= 2
+            self.sight = SIGHT + 5 * abs(i - 2)
 
     def render(self, surf):
         surf.fill(LIGHT_COLOR)
@@ -96,8 +103,9 @@ class App:
             pygame.draw.polygon(surf, (255, 255, 255), poly)
 
     def do_shadow(self):
-        visible_poly = cast_shadow(self.walls, self.pos)
-        np_limit_visibility(self.back_screen, visible_poly, self.pos, SIGHT)
+        if self.ENABLE_SHADOW:
+            visible_poly = cast_shadow(self.walls, self.pos)
+            np_limit_visibility(self.back_screen, visible_poly, self.pos, self.sight, self.frame // 5 % 8)
         self.display.fill(SHADOW_COLOR)
         self.display.blit(self.back_screen, (0, 0))
 
@@ -125,4 +133,3 @@ class App:
 
 if __name__ == '__main__':
     App().run()
-    main()
