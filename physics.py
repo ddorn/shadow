@@ -1,5 +1,6 @@
 from collections import namedtuple
 from math import cos, sin, pi, sqrt
+from typing import List
 
 import pygame
 
@@ -97,26 +98,38 @@ class Body(pygame.rect.RectType):
         self.velocity += self.acceleration
         self.pos += self.velocity
 
+    def check_colisions_x(self, static_bodies):
+        indices = self.collidelist(static_bodies)
+
+
+    def check_colisions_y(self, static_bodies):
+        pass
+
 
 class Space:
     def __init__(self, gravity=(0, 0)):
         self.gravity = gravity
-        self.bodies = []  # type: List[Body]
+        self.static_bodies = []  # type: List[Body]
         self.moving_bodies = []  # type: List[Body]
 
     def add(self, *bodies):
         for body in bodies:
             if body.moving:
                 self.moving_bodies.append(body)
-        pass
+            else:
+                self.static_bodies.append(body)
 
     def simulate(self):
         for body in self.moving_bodies:
             body.update_pos()
 
         # check colision horizontaly
+        for body in self.moving_bodies:
+            body.check_colisions_x(self.static_bodies)
 
         # check colision verticaly
+        for body in self.moving_bodies:
+            body.check_colisions_y(self.static_bodies)
 
 
 
