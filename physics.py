@@ -78,11 +78,12 @@ class Pos(namedtuple("Pos", ('x', 'y'))):
 
 
 class Body(pygame.rect.RectType):
-    def __init__(self, pos=(0, 0), size=(0, 0),  max_velocity=(None, None)):
-       super().__init__(pos, size)
-       self.velocity = Pos(0, 0)
-       self.acceleration = Pos(0, 0)
-       self.max_velocity = max_velocity
+    def __init__(self, pos=(0, 0), size=(0, 0),  max_velocity=(None, None), moving=False):
+        super().__init__(pos, size)
+        self.velocity = Pos(0, 0)
+        self.acceleration = Pos(0, 0)
+        self.max_velocity = max_velocity
+        self.moving = True
 
     @property
     def pos(self):
@@ -100,9 +101,22 @@ class Body(pygame.rect.RectType):
 class Space:
     def __init__(self, gravity=(0, 0)):
         self.gravity = gravity
+        self.bodies = []  # type: List[Body]
+        self.moving_bodies = []  # type: List[Body]
 
     def add(self, *bodies):
+        for body in bodies:
+            if body.moving:
+                self.moving_bodies.append(body)
         pass
 
     def simulate(self):
-        pass
+        for body in self.moving_bodies:
+            body.update_pos()
+
+        # check colision horizontaly
+
+        # check colision verticaly
+
+
+
