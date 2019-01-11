@@ -111,7 +111,7 @@ def clip_poly_to_rect(poly, rect: pygame.Rect):
     for edge in approx(clip):
         # print(edge)
         new_poly, poly = [], new_poly[:]
-        s = poly[-1]
+        s = approx(poly[-1])
         for e in approx(poly):
 
             i = 0

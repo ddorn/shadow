@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from math import floor, ceil
 from random import randint, choice
 
 import pygame
@@ -10,17 +11,17 @@ from player import Player
 from vfx import np_limit_visibility
 
 pygame.init()
-# pygame.key.set_repeat(50, 20)
+
 
 def plateforme(x, y, size):
-    x1 = x - size / 2
-    x2 = x + size / 2
-    x3 = randint(x - int(size / 3), x + int(size / 3))
+    x1 = BLOCK_SIZE * (x - floor(size / 2))
+    x2 = BLOCK_SIZE * (x + floor(size / 2) + 1)
+    y = BLOCK_SIZE * y
     return (
         (x1, y),
         (x2, y),
-        (x2, y + 40),
-        (x1, y + 40)
+        (x2, y + BLOCK_SIZE),
+        (x1, y + BLOCK_SIZE)
     )
 
 def carre(x, y, side):
@@ -32,27 +33,33 @@ def carre(x, y, side):
     )
 
 
+BLOCK_SIZE = 8
+GAME_SIZE = (320, 180)
 SCREEN_SIZE = (1920, 1080)
 LIGHT_COLOR = (248//2, 235//2, 68//2, 255)
 SHADOW_COLOR = (20, 70, 80)
-SIGHT = 500
+SIGHT = 80
 SPEED = 10
+
 
 class App:
     FPS = 60
     ENABLE_SHADOW = True
     ENABLE_DEBUG = False
+    BLIT_MODE = 0
 
     def __init__(self):
         self.display = pygame.display.set_mode(SCREEN_SIZE)  # type: pygame.Surface
-        self.back_screen = pygame.Surface(self.display.get_size(), pygame.SRCALPHA)
+        self.back_screen = pygame.Surface(GAME_SIZE, pygame.SRCALPHA)
         self.clock = pygame.time.Clock()
-        self.walls = self.create_walls(SCREEN_SIZE)
+        self.walls = self.create_walls(GAME_SIZE)
+        for w in self.walls: print(w)
         self.sight = SIGHT
         self.frame = 0
         self.stop = False
         self.player = Player()
         self.space = self.create_space()
+        self.dirt_img = pygame.image.load('assets/dirt.png').convert()
 
     def run(self):
         while not self.stop:
@@ -64,8 +71,6 @@ class App:
             self.render(self.back_screen)
             self.do_shadow()
 
-            if self.ENABLE_DEBUG:
-                self.space.debug_draw(self.draw_options)
             pygame.display.update()
             self.clock.tick(self.FPS)
             print("FPS:", round(self.clock.get_fps()), end='\r')
@@ -84,6 +89,9 @@ class App:
                     pygame.image.save(self.display, "shadows.png")
                 elif e.key == pygame.K_m:
                     self.ENABLE_DEBUG = not self.ENABLE_DEBUG
+                elif e.key == pygame.K_b:
+                    self.BLIT_MODE += 1
+                    self.BLIT_MODE %= 4
             self.player.event_loop(e)
 
     def update(self):
@@ -99,17 +107,37 @@ class App:
         # platforms
         for poly in self.walls[1:]:  # without the box
             pygame.draw.polygon(surf, (255, 255, 255), poly)
+        for poly in self.walls[1:]:
+            surf.blit(self.dirt_img, poly[0])
 
         self.player.render(surf)
 
     def do_shadow(self):
-        self.display.fill(SHADOW_COLOR)
+        s = pygame.Surface(GAME_SIZE)
+        s.fill(SHADOW_COLOR)
+        # self.display.fill(SHADOW_COLOR)
         if self.ENABLE_SHADOW:
             visible_poly = cast_shadow(self.walls, self.player.light_pos)
             rect = np_limit_visibility(self.back_screen, visible_poly, self.player.light_pos, self.sight, self.frame // 5 % 8)
-            self.display.blit(self.back_screen, rect.topleft, rect)
+            s.blit(self.back_screen, rect.topleft, rect)
         else:
-            self.display.blit(self.back_screen, (0, 0))
+            s.blit(self.back_screen, (0, 0))
+
+        if self.ENABLE_DEBUG:
+            self.draw_options.surface = s
+            self.space.debug_draw(self.draw_options)
+
+        if self.BLIT_MODE == 0:
+            s = pygame.transform.scale(s, SCREEN_SIZE, self.display)
+        if self.BLIT_MODE == 1:
+            s = pygame.transform.smoothscale(s, SCREEN_SIZE)
+        if self.BLIT_MODE >= 2:
+            s = pygame.transform.scale2x(s)
+            s = pygame.transform.scale2x(s)
+        if self.BLIT_MODE == 3:
+            s = pygame.transform.scale2x(s)
+
+        self.display.blit(s, (0, 0))
 
 
     def create_walls(self, screensize):
@@ -126,35 +154,40 @@ class App:
 
         return [
             ((0, 0), (0, screensize[1] - 1), (screensize[0] - 1, screensize[1] - 1), (screensize[0] - 1, 0)),
-            plateforme(100, 100, 60),
-            plateforme(400, 200, 100),
-            plateforme(300, 400, 80),
-            plateforme(600, 300, 200),
-            plateforme(900, 600, 300),
-            plateforme(700, 800, 200),
-            plateforme(screensize[0] // 2, screensize[1] - 40, screensize[0]),
+            plateforme(2, 3, 1),
+            # plateforme(6, 3, 1),
+            plateforme(4, 4, 5),
+            plateforme(0, 6, 1)
+            # plateforme(3, 9, 1),
+            # plateforme(9, 7, 2),
+            # plateforme(12, 4, 4),
+            # plateforme(11, 12, 4),
+            # plateforme(20, 24, 20),
         ]
 
     def create_space(self):
         space = pymunk.Space()
-        space.gravity = 0, 500
+        space.gravity = 0, 50
 
         for poly in self.walls[1:]:
-            p = pymunk.Poly(space.static_body, poly)
+            a, b, c, d = poly
+            # b = b[0] + 1, b[1]
+            # c = c[0] + 1, c[1] + 1
+            # d = d[0], d[1] + 1
+            p = pymunk.Poly(space.static_body, (a, b, c, d))
             # p.elasticity = 100
             p.friction = 1
             space.add(p)
 
         for a, b in segments(self.walls[0]):
-            p = pymunk.Segment(space.static_body, a, b, 10)
-            p.friction = 2
+            p = pymunk.Segment(space.static_body, a, b, 1)
+            p.friction = 1
             space.add(p)
 
 
-        player = self.player.body
-        player_shape = self.player.shape
-        space.add(player, player_shape)
+        space.add(self.player.body, *self.player.shapes)
 
+        pymunk.pygame_util.positive_y_is_up = False
         self.draw_options = pymunk.pygame_util.DrawOptions(self.display)
         return space
 

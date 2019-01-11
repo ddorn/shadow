@@ -10,8 +10,8 @@ import skimage.transform
 
 from maths import clip_poly_to_rect, Pos
 
-DOWNSCALE = 4
-BLUR = 20 // DOWNSCALE
+DOWNSCALE = 1
+BLUR = 15 // DOWNSCALE
 
 
 def tile_array(a, b0):
@@ -115,7 +115,7 @@ def np_get_alpha_visibility(visible_poly, sight_range, variant=0):
     # we remove the invisible from the mask
     light_mask[~invisible] = 0
 
-    light_mask = scipy.ndimage.gaussian_filter(light_mask, BLUR)
+    light_mask = scipy.ndimage.gaussian_filter(light_mask, 3)
     # light_mask = scipy.ndimage.uniform_filter(light_mask, BLUR)
 
     return light_mask
@@ -138,10 +138,10 @@ def np_limit_visibility(surf: pygame.Surface, visible_poly, view_point, sight_ra
 
     # we make a downscaled version and we'll scale it up
     visible_poly = [(Pos(p) - view_point) / DOWNSCALE for p in visible_poly]
-    light_mask = np_get_alpha_visibility(visible_poly, sight_range // DOWNSCALE, variant)
+    light_mask = np_get_alpha_visibility(visible_poly, sight_range, variant)
     # kronecker = np.ones((down_sampling, down_sampling))
     # light_mask = np.kron(light_mask, kronecker)
-    light_mask = tile_array(light_mask, DOWNSCALE)
+    # light_mask = tile_array(light_mask, DOWNSCALE)
     # light_mask = scipy.ndimage.uniform_filter(light_mask, DOWNSCALE)
     # light_mask = skimage.transform.rescale(light_mask, DOWNSCALE, anti_aliasing=False, preserve_range=True)
 
