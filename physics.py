@@ -5,23 +5,34 @@ from typing import List
 import pygame
 
 
-class Pos(namedtuple("Pos", ('x', 'y'))):
+class Pos:
     """A vector."""
 
-    def __new__(cls, *c):
-        if len(c) == 0:
-            c = (0, 0)
-        elif len(c) == 1:
-            assert len(c[0]) == 2
-            c = c[0]
-        elif len(c) > 2:
-            raise TypeError
-
-        # noinspection PyArgumentList
-        return tuple.__new__(cls, c)
-
     def __init__(self, *args):
-        super().__init__(*args)
+        if len(args) == 1:
+            args = args[0]
+        self.x = args[0]
+        self.y = args[1]
+
+    def __len__(self):
+        return 2
+
+    def __iter__(self):
+        yield self.x
+        yield self.y
+
+    def __bool__(self):
+        return self.x and self.y
+
+    def __repr__(self):
+        return f"Pos({self.x}, {self.y})"
+
+    def __getitem__(self, item):
+        if item == 0:
+            return self.x
+        elif item == 1:
+            return self.y
+        raise IndexError(f"Pos has no item {item}")
 
     def __add__(self, other):
         return Pos(self[0] + other[0], self[1] + other[1])
@@ -98,7 +109,8 @@ class Body(pygame.rect.RectType):
         self.velocity += self.acceleration
         self.pos += self.velocity
 
-    def check_colisions_x(self, static_bodies):
+    def update_x(self, static_bodies):
+        self.velocity.
         indices = self.collidelist(static_bodies)
 
 
@@ -125,7 +137,7 @@ class Space:
 
         # check colision horizontaly
         for body in self.moving_bodies:
-            body.check_colisions_x(self.static_bodies)
+            body.update_x(self.static_bodies)
 
         # check colision verticaly
         for body in self.moving_bodies:
