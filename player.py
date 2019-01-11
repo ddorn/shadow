@@ -1,6 +1,6 @@
 import pygame
 
-from maths import Pos
+from maths import Pos, approx
 from physics import Body
 
 MAX_SPEED = 80
@@ -13,7 +13,9 @@ class Player:
         img.set_colorkey((255, 255, 255))
         self.img = pygame.transform.smoothscale(img, (8, 8))
 
-        self.direction = Pos(0, 0)
+        self.direction = [False, False]
+        self.jumping = False
+        self.jump_frames = 0
 
         self.body = Body((32, 8), self.img.get_size(), (1, 2), moving=True)
 
@@ -25,16 +27,17 @@ class Player:
     def event_loop(self, e):
         if e.type == pygame.KEYDOWN:
             if e.key == pygame.K_SPACE:
-                ...
+                self.jumping = True
             elif e.key == pygame.K_LEFT:
                 self.direction[0] = True
             elif e.key == pygame.K_RIGHT:
                 self.direction[1] = True
-            elif e.key == pygame.K_r:
-                self.body.position = (32, 24)
 
-        if e.type == pygame.KEYUP:
-            if e.key == pygame.K_LEFT:
+        elif e.type == pygame.KEYUP:
+            if e.key == pygame.K_SPACE:
+                self.jumping = False
+                self.jump_frames = 0
+            elif e.key == pygame.K_LEFT:
                 self.direction[0] = False
             elif e.key == pygame.K_RIGHT:
                 self.direction[1] = False
@@ -42,17 +45,24 @@ class Player:
     def update(self):
 
         if self.direction[0] == self.direction[1]:
-            pass
+            self.body.velocity.x = 0
         elif self.direction[0]:
-            self.body.acceleration.x -= 0.5
+            self.body.acceleration.x -= 0.4
         elif self.direction[1]:
-            self.body.acceleration.x += 0.5
+            self.body.acceleration.x += 0.4
+
+        if self.jumping:
+            self.jump_frames += 1
+            if self.jump_frames < 15:
+                ay = self.body.space.gravity.y * 2
+            else:
+                ay = self.body.space.gravity.y / 2
+            self.body.acceleration.y -= ay
 
     def get_rect(self):
-        return self.body
+        return self.body.copy()
 
     def render(self, display):
-        r = self.get_rect()
         display.blit(self.img, self.body.topleft)
 
     def get_rotated(self, angle: int) -> pygame.Surface:

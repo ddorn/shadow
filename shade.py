@@ -137,14 +137,14 @@ class App:
 
     def create_space(self):
 
-        space = Space()
-        space.gravity = 0, 1
+        space = Space((0, 0.1))
 
         for rect in self.walls[1:]:
             p = Body(rect.topleft, rect.size)
             space.add(p)
 
         space.add(self.player.body)
+        self.player.body.space = space
 
         return space
 

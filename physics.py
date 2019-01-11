@@ -27,7 +27,7 @@ class Pos:
         return self.x and self.y
 
     def __repr__(self):
-        return f"Pos({self.x}, {self.y})"
+        return f"Pos({round(self.x, 3)}, {round(self.y, 3)})"
 
     def __getitem__(self, item):
         if item == 0:
@@ -92,20 +92,17 @@ class Pos:
 
 
 class Body(pygame.rect.RectType):
-    def __init__(self, pos=(0, 0), size=(0, 0),  max_velocity=(None, None), moving=False):
+    def __init__(self, pos=(0, 0), size=(0, 0),  max_velocity=(None, None), moving=False, space=None):
         super().__init__(pos, size)
         self.velocity = Pos(0, 0)
         self.acceleration = Pos(0, 0)
         self.max_velocity = Pos(max_velocity)
         self.moving = moving
+        self.space = space  # type: Space
 
     @property
     def pos(self):
         return Pos(self.topleft)
-
-    @pos.setter
-    def pos(self, value):
-        self.topleft = value
 
     def update_x(self, static_bodies):
         self.velocity.x += self.acceleration.x
@@ -158,7 +155,7 @@ class Body(pygame.rect.RectType):
 
 class Space:
     def __init__(self, gravity=(0, 0)):
-        self.gravity = gravity
+        self.gravity = Pos(gravity)
         self.static_bodies = []  # type: List[Body]
         self.moving_bodies = []  # type: List[Body]
 
