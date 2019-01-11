@@ -1,67 +1,74 @@
 from functools import lru_cache
 
 import pygame
-from pygame import Vector2 as Pos
+import pymunk
+from graphalama.maths import clamp
 
-MAX_SPEED = 10
+from maths import Pos
+
+MAX_SPEED = 400
+MOVE_FORCE = 10000
 
 class Player:
     def __init__(self):
         img = pygame.image.load("assets/fire.png").convert_alpha()
         self.img = pygame.transform.smoothscale(img, (55, 110))
 
-        self.angle = 0
+        self.pos = Pos(400, 70)
+        self.direction = [0, 0]  # (left, right)
 
-        self.pos = Pos(0, 0)
-        self.speed = Pos(0, 0)
-        self.acceleration = Pos(0, 0)
+        mass = 1
+        self.body = pymunk.Body(mass, pymunk.inf)
+        self.body.position = self.pos
+        self.shape = pymunk.Poly(self.body, self.get_poly())
+        self.shape.friction = 0
+
+    @property
+    def light_pos(self):
+        r = self.get_rect()
+        return r.center + Pos(0, r.h/4)
+
+    def event_loop(self, e):
+        if e.type == pygame.KEYDOWN:
+            if e.key == pygame.K_SPACE:
+                self.body.apply_impulse_at_local_point((0, -400), self.body.center_of_gravity)
+            elif e.key == pygame.K_LEFT:
+                # self.body.apply_impulse_at_local_point((-400, 0), self.body.center_of_gravity)
+                self.direction[0] = True
+            elif e.key == pygame.K_RIGHT:
+                # self.body.apply_impulse_at_local_point((400, 0), self.body.center_of_gravity)
+                self.direction[1] = True
+
+        if e.type == pygame.KEYUP:
+            if e.key == pygame.K_LEFT:
+                self.direction[0] = False
+            elif e.key == pygame.K_RIGHT:
+                self.direction[1] = False
 
     def update(self):
-        self.angle += 12
-        self.angle %= 360
+        self.pos = Pos(self.body.position)
 
-        # we use pressed to better handle LEFT + RIGHT
-        pressed = pygame.key.get_pressed()
-        ax = ay = 0
-        if pressed[pygame.K_LEFT]:
-            ax -= 1
-        if pressed[pygame.K_RIGHT]:
-            ax += 1
-        if pressed[pygame.K_UP]:
-            ay -= 1
-        if pressed[pygame.K_DOWN]:
-            ay += 1
-        self.acceleration = Pos(ax, ay)
+        if self.direction[0]:
+            self.body.apply_force_at_world_point((-MOVE_FORCE, 0), (0, 0))
+        if self.direction[1]:
+            self.body.apply_force_at_world_point((MOVE_FORCE, 0), (0, 0))
+        # if not any(self.direction):
+        #     self.body.velocity = (0, self.body.velocity.y)
 
-        self.speed += self.acceleration
-        # clamp the speed to MAX_SPEED
-        if self.speed.length() > MAX_SPEED:
-            self.speed *= MAX_SPEED / self.speed.length()
-
-        # Brake
-        if self.acceleration.x == 0:
-            self.speed = Pos(self.speed.x / 2, self.speed.y)
-        if self.acceleration.y == 0:
-            self.speed = Pos(self.speed.x, self.speed.y / 2)
-
-        self.pos += self.speed
+        self.body.velocity = (clamp(self.body.velocity.x, -MAX_SPEED, MAX_SPEED),
+                              clamp(self.body.velocity.y, -MAX_SPEED, MAX_SPEED))
 
     def get_rect(self):
-        rect = self.img.get_rect()
-        rect.center = self.pos - (0, rect.h / 4)
+        rect: pygame.Rect = self.img.get_rect()
+        # rect.center = self.pos - (0, rect.h / 4)
+        rect.center = self.pos
         return rect
 
     def render(self, display):
         display.blit(self.img, self.get_rect())
 
-    @lru_cache()
-    def rotated(self, angle):
-        rect = self.img.get_rect()
-        # but the image is bigger, aka it doesn't cut corners
-        rot = pygame.transform.rotate(self.img, angle)
-        rrot = rot.get_rect()
-        # rrot.center = rect.center
-        rect.center = rrot.center
-        well = pygame.Surface(rect.size, pygame.SRCALPHA)
-        well.blit(rot, (-rect.x, -rect.y))
-        return well
+    def get_poly(self):
+        r = self.get_rect()
+        r.center = 0, 0
+        return (r.topleft, r.bottomleft, r.bottomright, r.topright)
+

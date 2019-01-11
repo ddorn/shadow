@@ -2,14 +2,15 @@
 from random import randint, choice
 
 import pygame
-from graphalama.maths import Pos
+import pymunk
+import pymunk.pygame_util
 
-from maths import cast_shadow
+from maths import cast_shadow, segments
 from player import Player
 from vfx import np_limit_visibility
 
 pygame.init()
-pygame.key.set_repeat(50, 20)
+# pygame.key.set_repeat(50, 20)
 
 def plateforme(x, y, size):
     x1 = x - size / 2
@@ -18,7 +19,8 @@ def plateforme(x, y, size):
     return (
         (x1, y),
         (x2, y),
-        (x3, y + size / 2)
+        (x2, y + 40),
+        (x1, y + 40)
     )
 
 def carre(x, y, side):
@@ -30,16 +32,16 @@ def carre(x, y, side):
     )
 
 
-SCREEN_SIZE = (800, 500)
 SCREEN_SIZE = (1920, 1080)
-LIGHT_COLOR = (248//2, 235//2, 68//2)
+LIGHT_COLOR = (248//2, 235//2, 68//2, 255)
 SHADOW_COLOR = (20, 70, 80)
-SIGHT = 300
+SIGHT = 500
 SPEED = 10
 
 class App:
     FPS = 60
     ENABLE_SHADOW = True
+    ENABLE_DEBUG = False
 
     def __init__(self):
         self.display = pygame.display.set_mode(SCREEN_SIZE)  # type: pygame.Surface
@@ -50,6 +52,7 @@ class App:
         self.frame = 0
         self.stop = False
         self.player = Player()
+        self.space = self.create_space()
 
     def run(self):
         while not self.stop:
@@ -61,6 +64,8 @@ class App:
             self.render(self.back_screen)
             self.do_shadow()
 
+            if self.ENABLE_DEBUG:
+                self.space.debug_draw(self.draw_options)
             pygame.display.update()
             self.clock.tick(self.FPS)
             print("FPS:", round(self.clock.get_fps()), end='\r')
@@ -75,6 +80,11 @@ class App:
                     self.stop = True
                 elif e.key == pygame.K_t:
                     self.ENABLE_SHADOW = not self.ENABLE_SHADOW
+                elif e.key == pygame.K_p:
+                    pygame.image.save(self.display, "shadows.png")
+                elif e.key == pygame.K_m:
+                    self.ENABLE_DEBUG = not self.ENABLE_DEBUG
+            self.player.event_loop(e)
 
     def update(self):
         i = self.frame % 60
@@ -82,6 +92,7 @@ class App:
             i //= 2
             self.sight = SIGHT + 5 * abs(i - 2)
         self.player.update()
+        self.space.step(1/self.FPS)
 
     def render(self, surf):
         surf.fill(LIGHT_COLOR)
@@ -94,8 +105,8 @@ class App:
     def do_shadow(self):
         self.display.fill(SHADOW_COLOR)
         if self.ENABLE_SHADOW:
-            visible_poly = cast_shadow(self.walls, self.player.pos)
-            rect = np_limit_visibility(self.back_screen, visible_poly, self.player.pos, self.sight, self.frame // 5 % 8)
+            visible_poly = cast_shadow(self.walls, self.player.light_pos)
+            rect = np_limit_visibility(self.back_screen, visible_poly, self.player.light_pos, self.sight, self.frame // 5 % 8)
             self.display.blit(self.back_screen, rect.topleft, rect)
         else:
             self.display.blit(self.back_screen, (0, 0))
@@ -118,8 +129,35 @@ class App:
             plateforme(100, 100, 60),
             plateforme(400, 200, 100),
             plateforme(300, 400, 80),
-            plateforme(600, 300, 200)
+            plateforme(600, 300, 200),
+            plateforme(900, 600, 300),
+            plateforme(700, 800, 200),
+            plateforme(screensize[0] // 2, screensize[1] - 40, screensize[0]),
         ]
+
+    def create_space(self):
+        space = pymunk.Space()
+        space.gravity = 0, 500
+
+        for poly in self.walls[1:]:
+            p = pymunk.Poly(space.static_body, poly)
+            # p.elasticity = 100
+            p.friction = 1
+            space.add(p)
+
+        for a, b in segments(self.walls[0]):
+            p = pymunk.Segment(space.static_body, a, b, 10)
+            p.friction = 2
+            space.add(p)
+
+
+        player = self.player.body
+        player_shape = self.player.shape
+        space.add(player, player_shape)
+
+        self.draw_options = pymunk.pygame_util.DrawOptions(self.display)
+        return space
+
 
 
 if __name__ == '__main__':
