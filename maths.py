@@ -5,7 +5,7 @@ import pygame
 def Pos(*args):
     return pygame.Vector2(*args)
 
-def clip(x, mini, maxi):
+def clamp(x, mini, maxi):
     if maxi < mini:
         return x
     if x < mini:

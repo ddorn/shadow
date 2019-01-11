@@ -4,6 +4,8 @@ from typing import List
 
 import pygame
 
+from maths import clamp
+
 
 class Pos:
     """A vector."""
@@ -94,8 +96,8 @@ class Body(pygame.rect.RectType):
         super().__init__(pos, size)
         self.velocity = Pos(0, 0)
         self.acceleration = Pos(0, 0)
-        self.max_velocity = max_velocity
-        self.moving = True
+        self.max_velocity = Pos(max_velocity)
+        self.moving = moving
 
     @property
     def pos(self):
@@ -105,15 +107,14 @@ class Body(pygame.rect.RectType):
     def pos(self, value):
         self.topleft = value
 
-    def update_pos(self):
-        self.velocity += self.acceleration
-        self.pos += self.velocity
-
     def update_x(self, static_bodies):
         self.velocity.x += self.acceleration.x
+        if self.max_velocity.x is not None:
+            self.velocity.x = clamp(self.velocity.x, -self.max_velocity.x, self.max_velocity.x)
         self.x += self.velocity.x
 
         intersect = self.collidelistall(static_bodies)
+        intersect = [static_bodies[i] for i in intersect]
 
         if self.velocity.x > 0:
             # we are going right
@@ -121,32 +122,39 @@ class Body(pygame.rect.RectType):
                 if body.left < self.right:
                     self.right = body.left
                     self.velocity.x = 0
-        elif self.velocity.y < 0:
+        elif self.velocity.x < 0:
             # we are going left
             for body in intersect:
                 if self.left < body.right:
                     self.left = body.right
                     self.velocity.x = 0
 
+        self.acceleration.x = 0
+
 
     def update_y(self, static_bodies):
         self.velocity.y += self.acceleration.y
+        if self.max_velocity.y is not None:
+            self.velocity.y = clamp(self.velocity.y, -self.max_velocity.y, self.max_velocity.y)
         self.y += self.velocity.y
 
         intersect = self.collidelistall(static_bodies)
+        intersect = [static_bodies[i] for i in intersect]
 
         if self.velocity.y > 0:
             # we are going down
             for body in intersect:
-                if body.top < self.bottom:
+                if self.bottom > body.top:
                     self.bottom = body.top
                     self.velocity.y = 0
         elif self.velocity.y < 0:
             # we are going up
             for body in intersect:
-                if self.top < body.bottom:
+                if body.bottom > self.top:
                     self.top = body.bottom
                     self.velocity.y = 0
+
+        self.acceleration.y = 0
 
 class Space:
     def __init__(self, gravity=(0, 0)):
@@ -162,6 +170,8 @@ class Space:
                 self.static_bodies.append(body)
 
     def simulate(self):
+        for body in self.moving_bodies:
+            body.acceleration += self.gravity
 
         # check colision horizontaly
         # we don't do both at the same time because it simplifies A LOT the thing
