@@ -110,13 +110,43 @@ class Body(pygame.rect.RectType):
         self.pos += self.velocity
 
     def update_x(self, static_bodies):
-        self.velocity.
-        indices = self.collidelist(static_bodies)
+        self.velocity.x += self.acceleration.x
+        self.x += self.velocity.x
+
+        intersect = self.collidelistall(static_bodies)
+
+        if self.velocity.x > 0:
+            # we are going right
+            for body in intersect:
+                if body.left < self.right:
+                    self.right = body.left
+                    self.velocity.x = 0
+        elif self.velocity.y < 0:
+            # we are going left
+            for body in intersect:
+                if self.left < body.right:
+                    self.left = body.right
+                    self.velocity.x = 0
 
 
-    def check_colisions_y(self, static_bodies):
-        pass
+    def update_y(self, static_bodies):
+        self.velocity.y += self.acceleration.y
+        self.y += self.velocity.y
 
+        intersect = self.collidelistall(static_bodies)
+
+        if self.velocity.y > 0:
+            # we are going down
+            for body in intersect:
+                if body.top < self.bottom:
+                    self.bottom = body.top
+                    self.velocity.y = 0
+        elif self.velocity.y < 0:
+            # we are going up
+            for body in intersect:
+                if self.top < body.bottom:
+                    self.top = body.bottom
+                    self.velocity.y = 0
 
 class Space:
     def __init__(self, gravity=(0, 0)):
@@ -132,16 +162,16 @@ class Space:
                 self.static_bodies.append(body)
 
     def simulate(self):
-        for body in self.moving_bodies:
-            body.update_pos()
 
         # check colision horizontaly
+        # we don't do both at the same time because it simplifies A LOT the thing
+        # plus it's accurate enough
         for body in self.moving_bodies:
             body.update_x(self.static_bodies)
 
         # check colision verticaly
         for body in self.moving_bodies:
-            body.check_colisions_y(self.static_bodies)
+            body.update_y(self.static_bodies)
 
 
 
