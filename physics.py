@@ -1,6 +1,8 @@
 from collections import namedtuple
 from math import cos, sin, pi, sqrt
 
+import pygame
+
 
 class Pos(namedtuple("Pos", ('x', 'y'))):
     """A vector."""
@@ -16,6 +18,9 @@ class Pos(namedtuple("Pos", ('x', 'y'))):
 
         # noinspection PyArgumentList
         return tuple.__new__(cls, c)
+
+    def __init__(self, *args):
+        super().__init__(*args)
 
     def __add__(self, other):
         return Pos(self[0] + other[0], self[1] + other[1])
@@ -52,6 +57,11 @@ class Pos(namedtuple("Pos", ('x', 'y'))):
         """The vecor as a tuple of integer (round to closest)"""
         return round(self[0]), round(self[1])
 
+    @property
+    def i(self):
+        """The vector as an integer Pos (round to closest)"""
+        return Pos(round(self[0], round(self[1])))
+
     def squared_norm(self):
         """Return the squared norm of the vector"""
         return self[0] ** 2 + self[1] ** 2
@@ -67,11 +77,24 @@ class Pos(namedtuple("Pos", ('x', 'y'))):
                    s*self[0] - c*self[1])
 
 
-class Body:
-   def __init__(self, pos):
-       self.pos = pos
+class Body(pygame.rect.RectType):
+    def __init__(self, pos=(0, 0), size=(0, 0),  max_velocity=(None, None)):
+       super().__init__(pos, size)
+       self.velocity = Pos(0, 0)
+       self.acceleration = Pos(0, 0)
+       self.max_velocity = max_velocity
 
+    @property
+    def pos(self):
+        return Pos(self.topleft)
 
+    @pos.setter
+    def pos(self, value):
+        self.topleft = value
+
+    def update_pos(self):
+        self.velocity += self.acceleration
+        self.pos += self.velocity
 
 
 class Space:
