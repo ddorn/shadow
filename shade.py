@@ -5,7 +5,7 @@ from math import floor
 import pygame
 
 from maths import cast_shadow
-from physics import Space, Body
+from physics import Space, Body, AABB
 from player import Player
 from vfx import np_limit_visibility
 
@@ -140,7 +140,7 @@ class App:
         space = Space((0, 0.1))
 
         for rect in self.walls[1:]:
-            p = Body(rect.topleft, rect.size)
+            p = AABB(rect.topleft, rect.size)
             space.add(p)
 
         space.add(self.player.body)

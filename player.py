@@ -1,7 +1,7 @@
 import pygame
 
 from maths import Pos, approx
-from physics import Body
+from physics import Body, AABB
 
 MAX_SPEED = 80
 MOVE_FORCE = 300
@@ -17,7 +17,8 @@ class Player:
         self.jumping = False
         self.jump_frames = 0
 
-        self.body = Body((32, 8), self.img.get_size(), (1, 2), moving=True)
+        shape = AABB((32, 8), self.img.get_size())
+        self.body = Body(shape, (1, 2), moving=True)
 
     @property
     def light_pos(self):
@@ -27,7 +28,8 @@ class Player:
     def event_loop(self, e):
         if e.type == pygame.KEYDOWN:
             if e.key == pygame.K_SPACE:
-                self.jumping = True
+                if self.body.grounded:
+                    self.jumping = True
             elif e.key == pygame.K_LEFT:
                 self.direction[0] = True
             elif e.key == pygame.K_RIGHT:
@@ -60,10 +62,10 @@ class Player:
             self.body.acceleration.y -= ay
 
     def get_rect(self):
-        return self.body.copy()
+        return self.body.shape.pygame_rect
 
     def render(self, display):
-        display.blit(self.img, self.body.topleft)
+        display.blit(self.img, self.body.shape.topleft)
 
     def get_rotated(self, angle: int) -> pygame.Surface:
         return pygame.transform.rotate(self.img, angle)
