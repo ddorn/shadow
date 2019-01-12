@@ -132,7 +132,7 @@ class App:
             platform(9, 7, 2),
             platform(12, 4, 4),
             platform(11, 12, 4),
-            platform(20, 24, 20),
+            platform(20, 22, 38),
         ]
 
     def create_space(self):

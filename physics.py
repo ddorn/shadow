@@ -26,6 +26,9 @@ class Pos:
     def __bool__(self):
         return self.x and self.y
 
+    def __eq__(self, other):
+        return self.x == other[0] and self.y == other[1]
+
     def __repr__(self):
         return f"Pos({round(self.x, 3)}, {round(self.y, 3)})"
 
@@ -92,6 +95,9 @@ class Pos:
         return Pos(c * self[0] + s * self[1],
                    s * self[0] - c * self[1])
 
+    def copy(self):
+        return Pos(self.x, self.y)
+
 
 class AABB:
     """Axis aligned rectangle: the basic shape."""
@@ -137,11 +143,9 @@ class AABB:
 
         # the collide in 2D if they collide on both axis
         if self.right <= other.left or other.right <= self.left:
-            print(self, other, "not on x")
             return False
         if self.bottom <= other.top or other.bottom <= self.top:
             # the condition is the way because the y axis is inverted
-            print(self, other, "not on y")
             return False
 
         return True
@@ -227,16 +231,11 @@ class Body:
     def update_x(self, shapes):
         """Updates the position on the x coordinate and check for collision with the shapes."""
         self.velocity.x += self.acceleration.x
-        if self.max_velocity.x is not None:
-            self.velocity.x = clamp(self.velocity.x, -self.max_velocity.x, self.max_velocity.x)
+        self.clamp_speed()
         self.shape.x += self.velocity.x
 
 
         intersect = [s for s in shapes if self.shape.collide(s)]
-        print('--' * 10)
-        print("x", intersect, )
-        print(shapes)
-        print(self)
 
         if self.velocity.x > 0:
             # we are going right
@@ -257,8 +256,7 @@ class Body:
         self.grounded = False
 
         self.velocity.y += self.acceleration.y
-        if self.max_velocity.y is not None:
-            self.velocity.y = clamp(self.velocity.y, -self.max_velocity.y, self.max_velocity.y)
+        self.clamp_speed()
         self.shape.y += self.velocity.y
 
         intersect = [s for s in shapes if self.shape.collide(s)]
@@ -279,6 +277,15 @@ class Body:
 
         self.acceleration.y = 0
 
+    def clamp_speed(self):
+        prev = self.velocity.copy()
+        if self.max_velocity.x is not None:
+            self.velocity.x = clamp(self.velocity.x, -self.max_velocity.x, self.max_velocity.x)
+        if self.max_velocity.y is not None:
+            self.velocity.y = clamp(self.velocity.y, -self.max_velocity.y, self.max_velocity.y)
+
+        if self.velocity != prev:
+            print("VELOCITY CLAMPED:", prev)
 
 class Space:
     def __init__(self, gravity=(0, 0)):
