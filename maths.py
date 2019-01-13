@@ -1,4 +1,5 @@
 import pygame
+import visibility
 
 
 # noinspection PyArgumentList
@@ -89,6 +90,8 @@ def cast_shadow(walls, pos):
     # find interesting directions to cast shadow
     seg = [s for p in walls for s in segments(p)]
 
+    return visibility.visible_polygon(pos, seg)
+
     dirs = []
     for poly in walls:
         for point in poly:
@@ -111,6 +114,10 @@ def clip_poly_to_rect(poly, rect: pygame.Rect):
     for edge in approx(clip):
         # print(edge)
         new_poly, poly = [], new_poly[:]
+
+        if not poly:
+            return []
+
         s = approx(poly[-1])
         for e in approx(poly):
 

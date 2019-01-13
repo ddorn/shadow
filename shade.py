@@ -3,8 +3,9 @@
 from math import floor
 
 import pygame
+from visibility import VisibiltyCalculator
 
-from maths import cast_shadow
+from maths import cast_shadow, segments
 from physics import Space, Body, AABB
 from player import Player
 from vfx import np_limit_visibility
@@ -38,6 +39,10 @@ class App:
         self.back_screen = pygame.Surface(GAME_SIZE, pygame.SRCALPHA)
         self.clock = pygame.time.Clock()
         self.walls = self.create_walls(GAME_SIZE)
+        self.shadow_caster = VisibiltyCalculator(s for wall in self.walls for s in segments((wall.topleft,
+                                                                                             wall.topright,
+                                                                                             wall.bottomright,
+                                                                                             wall.bottomleft)))
         self.sight = SIGHT
         self.frame = 0
         self.stop = False
@@ -101,7 +106,8 @@ class App:
 
         if self.ENABLE_SHADOW:
             walls = tuple((p.topleft, p.bottomleft, p.bottomright, p.topright) for p in self.walls)
-            visible_poly = cast_shadow(walls, self.player.light_pos)
+            # visible_poly = cast_shadow(walls, self.player.light_pos)
+            visible_poly = self.shadow_caster.visible_polygon(self.player.light_pos)
             rect = np_limit_visibility(self.back_screen, visible_poly, self.player.light_pos, self.sight, self.frame // 5 % 8)
             s.blit(self.back_screen, rect.topleft, rect)
         else:
@@ -126,7 +132,7 @@ class App:
             pygame.Rect((0, 0), GAME_SIZE),
             platform(2, 3, 1),
             platform(6, 3, 1),
-            platform(4, 4, 5),
+            platform(4, 5, 5),
             platform(0, 6, 1),
             platform(3, 9, 1),
             platform(9, 7, 2),

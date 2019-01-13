@@ -105,7 +105,8 @@ def np_get_alpha_visibility(visible_poly, sight_range, variant=0):
     poly_surf = pygame.Surface(size, depth=8)
     # poly_surf.fill((255, 255, 255))
     # later we'll want to remove what we can see, so what we do see is 0, the rest is true
-    pygame.draw.polygon(poly_surf, (255, 255, 255), visible_poly)
+    if visible_poly:
+        pygame.draw.polygon(poly_surf, (255, 255, 255), visible_poly)
     # TODO: i think we can optimise by replacing the ~invisible and the .as_bool by just > 0
     invisible = pygame.surfarray.pixels2d(poly_surf).astype(np.bool)
 
