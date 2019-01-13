@@ -1,4 +1,3 @@
-from collections import namedtuple
 from math import cos, sin, pi, sqrt
 from typing import List
 
@@ -234,7 +233,6 @@ class Body:
         self.clamp_speed()
         self.shape.x += self.velocity.x
 
-
         intersect = [s for s in shapes if self.shape.collide(s)]
 
         if self.velocity.x > 0:
@@ -287,6 +285,7 @@ class Body:
         if self.velocity != prev:
             print("VELOCITY CLAMPED:", prev)
 
+
 class Space:
     def __init__(self, gravity=(0, 0)):
         self.gravity = Pos(gravity)
@@ -314,6 +313,7 @@ class Space:
         # check collision vertically
         for body in self.moving_bodies:
             body.update_y(self.static_bodies)
+
 
 if __name__ == '__main__':
     a = AABB(0, 0, 5, 5)

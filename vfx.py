@@ -4,26 +4,12 @@ import numpy as np
 import pygame
 import scipy
 import scipy.ndimage
-from numpy.lib.stride_tricks import as_strided
 from scipy.stats import truncnorm
-import skimage.transform
 
 from maths import clip_poly_to_rect, Pos
 
 DOWNSCALE = 1
 BLUR = 15 // DOWNSCALE
-
-
-def tile_array(a, b0):
-    """
-    Up scale an array by a factor b0
-    """
-    # from https://stackoverflow.com/a/32848377/6160055
-    b1 = b0
-    r, c = a.shape                                    # number of rows/columns
-    rs, cs = a.strides                                # row/column strides
-    x = as_strided(a, (r, b0, c, b1), (rs, 0, cs, 0)) # view a as larger 4D array
-    return x.reshape(r*b0, c*b1)                      # create new 2D array
 
 
 @lru_cache()
@@ -74,7 +60,6 @@ def np_blit_rect(dest, surf, pos):
 
 
 def np_blit(dest, surf, pos):
-
     x1, x2, y1, y2, a1, a2, b1, b2 = np_blit_rect(dest, surf, pos)
     dest[x1:x2, y1:y2] = surf[a1:a2, b1:b2]
 
@@ -84,26 +69,23 @@ def np_get_alpha_visibility(visible_poly, sight_range, variant=0):
     Get a 2D array of intensity of the light at every point, between 0 and 255 (to use as the alpha chanel.
 
     :param visible_poly: visible polygon, centered (0, 0), the view_point
-    :param view_point:
-    :param sight_range:
-    :param variant:
-    :return:
+    :param sight_range: max distance that the light should go
+    :param variant: light paterns are cached, so use the variant to control the one you want
+    :return: a mask (np.array) with the intensity of light t each point
     """
 
     # we clip the visible polygon to work with smaller surfaces
     topleft = (-sight_range,
                -sight_range)
-    size = (2*sight_range, 2*sight_range)
+    size = (2 * sight_range, 2 * sight_range)
     visible_poly = clip_poly_to_rect(visible_poly, pygame.Rect(topleft, size))
     # express the poly relatively to the topleft so we can draw it ON the surface
     visible_poly = [(p[0] - topleft[0], p[1] - topleft[1]) for p in visible_poly]
-
 
     # points inside the visible polygon
     # we use pygame to draw the polygon as it's the fastest thing i've found
     # 8 bit 'cos why use more ?
     poly_surf = pygame.Surface(size, depth=8)
-    # poly_surf.fill((255, 255, 255))
     # later we'll want to remove what we can see, so what we do see is 0, the rest is true
     if visible_poly:
         pygame.draw.polygon(poly_surf, (255, 255, 255), visible_poly)
@@ -116,10 +98,11 @@ def np_get_alpha_visibility(visible_poly, sight_range, variant=0):
     # we remove the invisible from the mask
     light_mask[~invisible] = 0
 
+    # and we blur it for a bleeding / bloom effect
     light_mask = scipy.ndimage.gaussian_filter(light_mask, 3)
-    # light_mask = scipy.ndimage.uniform_filter(light_mask, BLUR)
 
     return light_mask
+
 
 def np_limit_visibility(surf: pygame.Surface, visible_poly, view_point, sight_range=100, variant=0):
     """
@@ -140,25 +123,10 @@ def np_limit_visibility(surf: pygame.Surface, visible_poly, view_point, sight_ra
     # we make a downscaled version and we'll scale it up
     visible_poly = [(Pos(p) - view_point) / DOWNSCALE for p in visible_poly]
     light_mask = np_get_alpha_visibility(visible_poly, sight_range, variant)
-    # kronecker = np.ones((down_sampling, down_sampling))
-    # light_mask = np.kron(light_mask, kronecker)
-    # light_mask = tile_array(light_mask, DOWNSCALE)
-    # light_mask = scipy.ndimage.uniform_filter(light_mask, DOWNSCALE)
-    # light_mask = skimage.transform.rescale(light_mask, DOWNSCALE, anti_aliasing=False, preserve_range=True)
-
-    # and then we put the light at the right spot
-    # x1, x2, y1, y2, a1, a2, b1, b2 = np_blit_rect(light_mask, invisible, (-topleft[0], -topleft[1]))
-    #
-    # this ugly line is just light_mask[where its invisible] = 0
-    # but taking account of the border
-    # light_mask[x1:x2, y1:y2][invisible[a1:a2, b1:b2]] = 0
-    # and we blur the light so the edges appear, and it's not sharp (bleeding effect)
-    # light_mask = scipy.ndimage.uniform_filter(light_mask, 20)
-    # light_mask = scipy.ndimage.gaussian_filter(light_mask, 10)
 
     # zero it
     alpha[:] = 0
     # add the light
     np_blit(alpha, light_mask, topleft)
 
-    return pygame.Rect(topleft, (2*sight_range, 2*sight_range))
+    return pygame.Rect(topleft, (2 * sight_range, 2 * sight_range))

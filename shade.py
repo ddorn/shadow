@@ -5,18 +5,17 @@ from math import floor
 import pygame
 from visibility import VisibiltyCalculator
 
-from maths import cast_shadow, segments
-from physics import Space, Body, AABB
+from maths import segments
+from physics import Space, AABB
 from player import Player
 from vfx import np_limit_visibility
 
 pygame.init()
 
-
 BLOCK_SIZE = 8
 GAME_SIZE = (320, 180)
 SCREEN_SIZE = (1920, 1080)
-LIGHT_COLOR = (248//2, 235//2, 68//2, 255)
+LIGHT_COLOR = (248 // 2, 235 // 2, 68 // 2, 255)
 SHADOW_COLOR = (20, 70, 80)
 SIGHT = 80
 SPEED = 10
@@ -105,10 +104,9 @@ class App:
         s.fill(SHADOW_COLOR)
 
         if self.ENABLE_SHADOW:
-            walls = tuple((p.topleft, p.bottomleft, p.bottomright, p.topright) for p in self.walls)
-            # visible_poly = cast_shadow(walls, self.player.light_pos)
             visible_poly = self.shadow_caster.visible_polygon(self.player.light_pos)
-            rect = np_limit_visibility(self.back_screen, visible_poly, self.player.light_pos, self.sight, self.frame // 5 % 8)
+            rect = np_limit_visibility(self.back_screen, visible_poly, self.player.light_pos, self.sight,
+                                       self.frame // 5 % 8)
             s.blit(self.back_screen, rect.topleft, rect)
         else:
             s.blit(self.back_screen, (0, 0))
@@ -124,7 +122,6 @@ class App:
             s = pygame.transform.scale2x(s)
 
         self.display.blit(s, (0, 0))
-
 
     def create_walls(self, screensize):
 
@@ -153,7 +150,6 @@ class App:
         self.player.body.space = space
 
         return space
-
 
 
 if __name__ == '__main__':
