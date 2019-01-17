@@ -5,7 +5,7 @@ from math import floor
 import pygame
 from visibility import VisibiltyCalculator
 
-from maths import segments
+from maths import segments, Pos
 from physics import Space, AABB
 from player import Player
 from vfx import np_limit_visibility
@@ -29,9 +29,10 @@ def platform(x, y, size):
 
 
 class App:
-    FPS = 60
+    FPS = 10
     ENABLE_SHADOW = True
     BLIT_MODE = 0
+    MOUSE_CONTROL = False
 
     def __init__(self):
         self.display = pygame.display.set_mode(SCREEN_SIZE)  # type: pygame.Surface
@@ -78,6 +79,8 @@ class App:
                 elif e.key == pygame.K_b:
                     self.BLIT_MODE += 1
                     self.BLIT_MODE %= 4
+                elif e.key == pygame.K_m:
+                    self.MOUSE_CONTROL = not self.MOUSE_CONTROL
             self.player.event_loop(e)
 
     def update(self):
@@ -88,6 +91,8 @@ class App:
 
         self.space.simulate()
         self.player.update()
+        if self.MOUSE_CONTROL:
+            self.player.body.shape.topleft = Pos(pygame.mouse.get_pos()) // 6
 
     def render(self, surf):
         surf.fill(LIGHT_COLOR)
@@ -124,18 +129,20 @@ class App:
         self.display.blit(s, (0, 0))
 
     def create_walls(self, screensize):
+        border = [pygame.Rect((0, 0), GAME_SIZE)]
 
-        return [
-            pygame.Rect((0, 0), GAME_SIZE),
+        p = [platform(20 + 3*i, 10 + 3*j, 1) for i in range(5) for j in range(4)]
+
+        return border + p + [
             platform(2, 3, 1),
             platform(6, 3, 1),
             platform(4, 5, 5),
-            platform(0, 6, 1),
+            # platform(0, 6, 1),
             platform(3, 9, 1),
             platform(9, 7, 2),
             platform(12, 4, 4),
             platform(11, 12, 4),
-            platform(20, 22, 38),
+            platform(20, 21, 38),
         ]
 
     def create_space(self):
