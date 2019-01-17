@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Another Perfect Lite Level Editor
 """
@@ -62,10 +64,10 @@ class EditScreen(Screen):
 
     def __init__(self, app):
 
-        tool = CarouselSwitch(["Brush", "Eraser"], self.tool_change, (20, 20))
+        self.tool_carousel = CarouselSwitch(["Brush", "Eraser"], self.tool_change, (20, 20))
         reset = Button("Reset", self.reset, bg_color=(240, 60, 60))
         save = Button("Save", self.save)
-        widgets = (tool, reset, save)
+        widgets = (self.tool_carousel, reset, save)
         super().__init__(app, widgets, (20, 40, 90))
         self.map = {}
         self.tile_size = 16
@@ -95,6 +97,10 @@ class EditScreen(Screen):
                 self.reset()
             elif event.key == pygame.K_s:
                 self.save()
+            elif event.key == pygame.K_b:
+                self.tool_carousel.option_index = self.tool_carousel.options.index("Brush")
+            elif event.key == pygame.K_e:
+                self.tool_carousel.option_index = self.tool_carousel.options.index("Eraser")
 
     def internal_logic(self):
 
