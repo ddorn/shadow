@@ -5,6 +5,7 @@ from math import floor
 import pygame
 from visibility import VisibiltyCalculator
 
+from apple import Map
 from maths import segments, Pos
 from physics import Space, AABB
 from player import Player
@@ -12,8 +13,8 @@ from vfx import np_limit_visibility
 
 pygame.init()
 
-BLOCK_SIZE = 8
-GAME_SIZE = (320, 180)
+BLOCK_SIZE = 16
+GAME_SIZE = (480, 270)
 SCREEN_SIZE = (1920, 1080)
 LIGHT_COLOR = (248 // 2, 235 // 2, 68 // 2, 255)
 SHADOW_COLOR = (20, 70, 80)
@@ -21,15 +22,8 @@ SIGHT = 80
 SPEED = 10
 
 
-def platform(x, y, size):
-    x1 = BLOCK_SIZE * (x - floor(size / 2))
-    y = BLOCK_SIZE * y
-    r = pygame.Rect((x1, y), (size * BLOCK_SIZE, BLOCK_SIZE))
-    return r
-
-
 class App:
-    FPS = 10
+    FPS = 60
     ENABLE_SHADOW = True
     BLIT_MODE = 0
     MOUSE_CONTROL = False
@@ -38,11 +32,9 @@ class App:
         self.display = pygame.display.set_mode(SCREEN_SIZE)  # type: pygame.Surface
         self.back_screen = pygame.Surface(GAME_SIZE, pygame.SRCALPHA)
         self.clock = pygame.time.Clock()
-        self.walls = self.create_walls(GAME_SIZE)
-        self.shadow_caster = VisibiltyCalculator(s for wall in self.walls for s in segments((wall.topleft,
-                                                                                             wall.topright,
-                                                                                             wall.bottomright,
-                                                                                             wall.bottomleft)))
+        self.map = Map.load('assets/levels/0', )
+        self.walls = self.map.collision_rects()
+        self.shadow_caster = VisibiltyCalculator(self.create_shadow_walls(GAME_SIZE))
         self.sight = SIGHT
         self.frame = 0
         self.stop = False
@@ -78,7 +70,7 @@ class App:
                     pygame.image.save(self.display, "shadows.png")
                 elif e.key == pygame.K_b:
                     self.BLIT_MODE += 1
-                    self.BLIT_MODE %= 4
+                    self.BLIT_MODE %= 8
                 elif e.key == pygame.K_m:
                     self.MOUSE_CONTROL = not self.MOUSE_CONTROL
             self.player.event_loop(e)
@@ -97,10 +89,10 @@ class App:
     def render(self, surf):
         surf.fill(LIGHT_COLOR)
         # platforms
-        for rect in self.walls[1:]:  # without the box
-            surf.fill((255, 255, 255), rect)
-        for rect in self.walls[1:]:
-            surf.blit(self.dirt_img, rect.topleft)
+        for pos in self.map:
+            img = self.map.get_image_at(pos, 1)
+            r = self.map.pos_to_rect(pos)
+            surf.blit(img, r)
 
         self.player.render(surf)
 
@@ -118,38 +110,35 @@ class App:
 
         if self.BLIT_MODE == 0:
             s = pygame.transform.scale(s, SCREEN_SIZE, self.display)
-        if self.BLIT_MODE == 1:
+        elif self.BLIT_MODE == 1:
             s = pygame.transform.smoothscale(s, SCREEN_SIZE)
-        if self.BLIT_MODE >= 2:
+        elif self.BLIT_MODE == 2:
+            # we do nothing
+            pass
+        elif self.BLIT_MODE == 3:
+            s = pygame.transform.scale2x(s)
+        elif self.BLIT_MODE == 4:
             s = pygame.transform.scale2x(s)
             s = pygame.transform.scale2x(s)
-        if self.BLIT_MODE == 3:
-            s = pygame.transform.scale2x(s)
+        else:
+            scale = self.BLIT_MODE - 3
+            s = pygame.transform.scale(s, (GAME_SIZE[0] * scale, GAME_SIZE[1] * scale))
+
 
         self.display.blit(s, (0, 0))
 
-    def create_walls(self, screensize):
-        border = [pygame.Rect((0, 0), GAME_SIZE)]
-
-        p = [platform(20 + 3*i, 10 + 3*j, 1) for i in range(5) for j in range(4)]
-
-        return border + p + [
-            platform(2, 3, 1),
-            platform(6, 3, 1),
-            platform(4, 5, 5),
-            # platform(0, 6, 1),
-            platform(3, 9, 1),
-            platform(9, 7, 2),
-            platform(12, 4, 4),
-            platform(11, 12, 4),
-            platform(20, 21, 38),
-        ]
+    def create_shadow_walls(self, screensize):
+        shadow_block = self.map.unoptimized_shadow_blockers()
+        bound = pygame.Rect((0, 0), GAME_SIZE)
+        shadow_block.extend(segments((bound.topleft, bound.topright,
+                                      bound.bottomright, bound.bottomleft)))
+        return shadow_block
 
     def create_space(self):
 
-        space = Space((0, 0.1))
+        space = Space((0, 0.2))
 
-        for rect in self.walls[1:]:
+        for rect in self.walls:
             p = AABB(rect.topleft, rect.size)
             space.add(p)
 

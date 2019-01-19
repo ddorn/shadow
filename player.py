@@ -3,9 +3,13 @@ import pygame
 from maths import Pos, approx, clamp
 from physics import Body, AABB
 
-MAX_SPEED = 80
-MOVE_FORCE = 300
-JUMP_IMPULSE = 50
+MAX_PLAYER_SPEED = (3, 6)
+JUMP_IMPULSE = -3
+JUMP_DURATION = 30
+JUMP_BRAKE_STRENGTH = 2
+WALK_ACCELERATION = 0.2
+HOVERING_GRAVITY_FACTOR = 0.5
+
 
 class Player:
     def __init__(self):
@@ -18,8 +22,8 @@ class Player:
         self.hovering = False
         self.jump_frames = 0
 
-        shape = AABB((32, 8), self.img.get_size())
-        self.body = Body(shape, (2, 3), moving=True)
+        shape = AABB((42, 8), self.img.get_size())
+        self.body = Body(shape, MAX_PLAYER_SPEED, moving=True)
 
     @property
     def light_pos(self):
@@ -32,7 +36,7 @@ class Player:
                 self.hovering = True
                 if self.body.grounded:
                     self.jumping = True
-                    self.body.velocity.y -= 2
+                    self.body.velocity.y += JUMP_IMPULSE
             elif e.key == pygame.K_LEFT:
                 self.direction[0] = True
             elif e.key == pygame.K_RIGHT:
@@ -53,24 +57,24 @@ class Player:
         if self.direction[0] == self.direction[1]:
             self.body.velocity.x = 0
         elif self.direction[0]:
-            self.body.acceleration.x -= 0.1
+            self.body.acceleration.x -= WALK_ACCELERATION
         elif self.direction[1]:
-            self.body.acceleration.x += 0.1
+            self.body.acceleration.x += WALK_ACCELERATION
 
         ay = 0
         if self.jumping:
             # we almost cancel gravity for the first frames and then less and less
-            ay = self.body.space.gravity.y * clamp(1 - self.jump_frames / 20, 0, 1)
+            ay = self.body.space.gravity.y * clamp(1 - self.jump_frames / JUMP_DURATION, 0, 1)
             self.jump_frames += 1
         elif self.hovering:
             # if we go down when hovering, we reduce the gravity
             if self.body.velocity.y > 0:
-                ay += self.body.space.gravity.y * 0.5
+                ay += self.body.space.gravity.y * HOVERING_GRAVITY_FACTOR
 
         # after a jump we want to quickly start going down for more control
         # hovering but going up is not wanted
         if not self.jumping and self.body.velocity.y < 0:
-            self.body.velocity.y /= 2
+            self.body.velocity.y /= JUMP_BRAKE_STRENGTH
 
         self.body.acceleration.y -= ay
 

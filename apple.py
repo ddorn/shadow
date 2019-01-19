@@ -3,21 +3,40 @@
 """
 Another Perfect Lite Level Editor
 """
+
 import json
 from functools import lru_cache
 from typing import List
+from collections import defaultdict
 
 import pygame
 from graphalama.app import App, Screen
 from graphalama.buttons import CarouselSwitch, Button
-from graphalama.maths import Pos
+
+from physics import AABB
 
 pygame.init()
 
 EDIT = 1
 
+
+def print_pos_2d(pos):
+    xs, ys = zip(*pos)
+    minx = min(xs)
+    miny = min(ys)
+    maxx = max(xs)
+    maxy = max(ys)
+
+    l = [[" "] * (maxx - minx + 1) for _ in range(maxy - miny + 1)]
+    for x, y in pos:
+        l[y - miny][x - minx] = '\u2588'
+
+    for line in l:
+        print(*line, sep='')
+
 class Tile:
     def __init__(self, path, size):
+        self.path = path
         self.sheet = pygame.image.load(path).convert()  # type: pygame.Surface
         self.sheet.set_colorkey((255, 0, 255))
         self.size = size
@@ -70,7 +89,10 @@ class Map(dict):
     def save(self, file='assets/levels/0'):
         to_save = {}
         for pos, tile in self.items():
-            to_save[f'{pos[0]}, {pos[1]}'] = tile
+            to_save[f'{pos[0]} {pos[1]}'] = tile
+
+        to_save['tiles'] = [(t.path, t.size) for t in self.tiles]
+
         s = json.dumps(to_save, indent=4)
         with open(file, 'w') as f:
             f.write(s)
@@ -80,7 +102,10 @@ class Map(dict):
         with open(file, 'r') as f:
             d = json.loads(f.read())
 
-        map_ = cls()
+        tiles = d.pop('tiles')
+        tiles = [Tile(*t) for t in tiles]
+
+        map_ = cls(tiles)
         for pos_string, tile in d.items():
             x, y = map(int, pos_string.split())
             map_[(x, y)] = tile
@@ -104,6 +129,163 @@ class Map(dict):
                 neigh[x][y] = tile
 
         return tuple(tuple(line) for line in neigh)
+
+    def collision_rects(self):
+        # we sort them by Y then X
+        positions = [(pos[1], pos[0]) for pos in self.keys()]
+        positions.sort()
+
+        # assuming a constant tile size
+        tile_size = self.tile_size
+
+        # so we can have line rects easily
+        line_rects = []
+        first = positions[0]
+        last = positions[0]
+        for pos in positions[1:]:
+            if pos[0] == last[0] and pos[1] == last[1] + 1:
+                # just after on the same line : we expand the block
+                last = pos
+            else:
+                # end of last block
+                size = last[1] - first[1] + 1
+                x = first[1] * tile_size
+                y = first[0] * tile_size
+                w = size * tile_size
+                h = tile_size
+                line_rects.append(AABB(x, y, w, h))
+
+                # we start a new block
+                first = pos
+                last = pos
+
+        # we add the last block too
+        size = last[1] - first[1] + 1
+        x = first[1] * tile_size
+        y = first[0] * tile_size
+        w = size * tile_size
+        h = tile_size
+        line_rects.append(AABB(x, y, w, h))
+
+        # todo: merge lines with the same width
+        return line_rects
+
+    @property
+    def tile_size(self):
+        # assuming that all tiles have the same size
+        if self.tiles:
+            return self.tiles[0].size
+        return 0
+
+    def pos_to_rect(self, pos):
+        s = self.tile_size
+        x = pos[0] * s
+        y = pos[1] * s
+        r = pygame.Rect(x, y, s, s)
+        return r
+
+
+    def unoptimized_shadow_blockers(self):
+        s = self.tile_size
+        blocks = list(self.keys())
+        edges = set()
+        for x, y in blocks:
+            x = s * x
+            y = s * y
+            edges.add(((x, y), (x + 1, y)))
+            edges.add(((x, y + 1), (x + 1, y + 1)))
+            edges.add(((x, y), (x, y + 1)))
+            edges.add(((x + 1, y), (x + 1, y + 1)))
+
+        return list(edges)
+
+
+    def get_shadow_blockers(self):
+
+        directions = ((1, 0), (0, 1), (-1, 0), (0, -1))
+        height_directions = directions + ((1, 1), (1, -1), (-1, -1), (-1, 1))
+
+        # STEP 0: Separate tiles in connex block, with a floodfill
+        # But we keep only block that touch the air
+        def touches_air(pos):
+            for dx, dy in height_directions:
+                new_pos = pos[0] + dx, pos[1] + dy
+                if self.get(new_pos) is None:
+                    return True
+            return False
+
+        tiles = set(self.keys())
+        blocks = []
+        while tiles:
+            heads = [tiles.pop()]
+            block = []
+            while heads:
+                head = heads.pop()
+                if touches_air(head):
+                    block.append(head)
+
+                # on each side
+                for dx, dy in directions:
+                    new_head = head[0] + dx, head[1] + dy
+                    if new_head in tiles:
+                        tiles.remove(new_head)
+                        heads.append(new_head)
+            blocks.append(block)
+            print_pos_2d(block)
+
+
+        # STEP 1: We follow the edge in clockwise order
+
+        def find_next(current, direction, points):
+            """Find the segment following this one, turning in clockwise order"""
+
+            # Directions are >v<^, we check first the one before
+            # then the same direction then the next one
+            # so we go in CW order
+            directions_to_check = (direction - 1,
+                                   direction,
+                                   direction + 1)
+            # normalisation
+            directions_to_check = (d % 4 for d in directions_to_check)
+
+            for d in directions_to_check:
+                dx, dy = directions[d]
+                next_pos = current[0] + dx, current[1] + dy
+                if next_pos in points:
+                    return next_pos, d
+
+            return None, None
+
+
+        paths = []
+        for block in blocks:
+            # 0 = right
+            # 1 = down
+            # 2 = left
+            # 3 = up
+            direction = 0
+            block = sorted(block)
+            path = []
+            start = block[0]
+            current = start
+
+            while current is not None:
+                path.append(current)
+                current, direction = find_next(current, direction, block)
+
+                # This is the stop condition
+                if current == start:
+                    current = None
+            paths.append(path)
+
+        return paths
+
+
+
+
+
+
+
 
 
 class EditScreen(Screen):
@@ -217,8 +399,12 @@ class Apple(App):
 
 def main():
     Apple().run()
+    pygame.quit()
 
 
 if __name__ == '__main__':
     main()
-    pygame.quit()
+    m = Map.load()
+    for s in m.get_shadow_blockers():
+        print(len(s), "\t:  ", s)
+    # print(m.get_shadow_blockers())

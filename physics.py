@@ -102,6 +102,7 @@ class AABB:
     """Axis aligned rectangle: the basic shape."""
 
     def __init__(self, *args):
+        """Create a axis aligned rectangle. Args a in the same style as pygame.Rect args."""
         if len(args) == 1:
             args = args[0]
 
