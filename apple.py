@@ -5,8 +5,9 @@ Another Perfect Lite Level Editor
 """
 
 import json
+from dataclasses import dataclass
 from functools import lru_cache
-from typing import List
+from typing import List, Dict
 from collections import defaultdict
 
 import pygame
@@ -34,6 +35,26 @@ def print_pos_2d(pos):
     for line in l:
         print(*line, sep='')
 
+
+@dataclass
+class Point:
+    x: int
+    left: bool
+    belong_to_current_rect: bool = False
+
+    def __hash__(self):
+        return hash(self.x)
+
+    def __eq__(self, other):
+        return isinstance(other, Point) and self.x == other.x
+
+    def __lt__(self, other):
+        return self.x < other.x
+
+    def __repr__(self):
+        return f"{self.x}{'[' if self.left else ']'}"
+
+
 class Tile:
     def __init__(self, path, size):
         self.path = path
@@ -60,12 +81,12 @@ class Tile:
                 match = True
                 for x in range(3):
                     for y in range(3):
-                        c = patern[3*y + x]
+                        c = patern[3 * y + x]
                         if c == '=':
-                            if neighbors[x - 1][y -1] != tile_id:
+                            if neighbors[x - 1][y - 1] != tile_id:
                                 match = False
                         elif c == ' ':
-                            if neighbors[x - 1][y -1] == tile_id:
+                            if neighbors[x - 1][y - 1] == tile_id:
                                 match = False
                         elif c == '?':
                             # any tile will do
@@ -73,7 +94,6 @@ class Tile:
 
                 if match:
                     pos = X, Y
-
 
         img = self.get_at(*pos)
         return pygame.transform.scale(img, (self.size * scale, self.size * scale))
@@ -184,7 +204,6 @@ class Map(dict):
         r = pygame.Rect(x, y, s, s)
         return r
 
-
     def unoptimized_shadow_blockers(self):
         s = self.tile_size
         blocks = list(self.keys())
@@ -199,6 +218,68 @@ class Map(dict):
 
         return list(edges)
 
+    def _shadow_blocker_helper(self, r, other_line, y):
+        segments = set()
+        left = Point(r.left, True, True)
+        right = Point(r.right, False, True)
+        points = {left, right}
+        for a in other_line:
+            points.add(Point(a.left, True))
+            points.add(Point(a.right, False))
+
+        # We care only about points between the borders of the rect
+        points = sorted(points)
+        begin = points.index(left)
+        end = points.index(right)
+        points = points[begin:end + 1]
+
+        # the non visible segments are the one that start with left[ and end with right]
+        # so we add all the other to se wall segments
+        for (a, b) in zip(points[:-1], points[1:]):
+            if a.belong_to_current_rect and b.belong_to_current_rect:
+                # there is nothing in between (this case is a [ ] but we still want the segment)
+                segments.add(((a.x, y), (b.x, y)))
+            elif a.left and not b.left:
+                pass
+            else:
+                segments.add(((a.x, y), (b.x, y)))
+
+        return segments
+
+    def shadow_blockers(self):
+        # collision_rects return a rectangle for each part of the line
+        rectlines = self.collision_rects()
+
+        segments = set()
+
+        # For the vertical part, it's easy, ase there is no overlapping
+        for r in rectlines:
+            r = r.pygame_rect
+            segments.add((r.topleft, r.bottomleft))
+            segments.add((r.topright, r.bottomright))
+
+
+        # but sometimes rectangles are like this :
+        #  ____    _
+        # |____|__|_|
+        #    |____|
+        #
+        # so we need to remove the common parts
+
+        # class the rects by line
+        lines = defaultdict(list)  # type: Dict[int, pygame.Rect]
+        for line in rectlines:
+            lines[line.y].append(line)
+        ys = sorted(lines.keys())
+        for y in ys:
+            line_before = lines[y - self.tile_size]
+            line_after = lines[y + self.tile_size]
+
+            for r in lines[y]:
+                segments.update(self._shadow_blocker_helper(r, line_before, y))
+                segments.update(self._shadow_blocker_helper(r, line_after, y + self.tile_size))
+
+        return list(segments)
 
     def get_shadow_blockers(self):
 
@@ -233,7 +314,6 @@ class Map(dict):
             blocks.append(block)
             print_pos_2d(block)
 
-
         # STEP 1: We follow the edge in clockwise order
 
         def find_next(current, direction, points):
@@ -255,7 +335,6 @@ class Map(dict):
                     return next_pos, d
 
             return None, None
-
 
         paths = []
         for block in blocks:
@@ -281,13 +360,6 @@ class Map(dict):
         return paths
 
 
-
-
-
-
-
-
-
 class EditScreen(Screen):
     BRUSH = 1
     ERASER = 2
@@ -304,14 +376,13 @@ class EditScreen(Screen):
         # map
         self.tile_size = 16
         tiles = [Tile("assets/dirt_sheet.png", self.tile_size)]
-        self.map = Map(tiles)
+        self.map = Map.load()
         self._tile_index = 0
 
         # editor settings
         self.scale = 4
         self.drawing = False
         self.tool = self.BRUSH
-
 
     @property
     def tile_index(self):

@@ -18,7 +18,7 @@ GAME_SIZE = (480, 270)
 SCREEN_SIZE = (1920, 1080)
 LIGHT_COLOR = (248 // 2, 235 // 2, 68 // 2, 255)
 SHADOW_COLOR = (20, 70, 80)
-SIGHT = 80
+SIGHT = 120
 SPEED = 10
 
 
@@ -94,6 +94,9 @@ class App:
             r = self.map.pos_to_rect(pos)
             surf.blit(img, r)
 
+        for a, b in self.map.shadow_blockers():
+            pygame.draw.line(surf, (255, 0, 0), a, b)
+
         self.player.render(surf)
 
     def do_shadow(self):
@@ -128,7 +131,7 @@ class App:
         self.display.blit(s, (0, 0))
 
     def create_shadow_walls(self, screensize):
-        shadow_block = self.map.unoptimized_shadow_blockers()
+        shadow_block = self.map.shadow_blockers()
         bound = pygame.Rect((0, 0), GAME_SIZE)
         shadow_block.extend(segments((bound.topleft, bound.topright,
                                       bound.bottomright, bound.bottomleft)))
