@@ -84,11 +84,6 @@ class App:
             self.player.event_loop(e)
 
     def update(self):
-        i = self.frame % 60
-        if i < 10:
-            i //= 2
-            self.sight = SIGHT + 5 * abs(i - 2)
-
         self.space.simulate()
         self.player.update()
 
@@ -142,7 +137,7 @@ class App:
         return space
 
     def update_light_mask(self):
-        if self.light_mask is None or self.frame % 3 == 0:
+        if self.light_mask is None or self.frame % 2 == 0:
             visible_poly = self.shadow_caster.visible_polygon(self.player.light_pos)
             self.light_mask = get_light_mask(visible_poly, self.player.light_pos, self.sight, self.frame // 6 % 10)
             self.light_mask_view_point = self.player.light_pos
