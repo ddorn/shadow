@@ -207,6 +207,7 @@ class Body:
     """A moving object."""
 
     def __init__(self, shape, max_velocity=(None, None), moving=False, space=None):
+
         self.shape = shape  # type: AABB
         self.space = space  # type: Space
 
@@ -230,6 +231,8 @@ class Body:
 
     def update_x(self, shapes):
         """Updates the position on the x coordinate and check for collision with the shapes."""
+        self.collide_left = False
+        self.collide_right = False
         self.velocity.x += self.acceleration.x
         self.clamp_speed()
         self.shape.x += self.velocity.x
@@ -242,17 +245,20 @@ class Body:
                 if body.left < self.shape.right:
                     self.shape.right = body.left
                     self.velocity.x = 0
+                    self.collide_right = True
         elif self.velocity.x < 0:
             # we are going left
             for body in intersect:
                 if self.shape.left < body.right:
                     self.shape.left = body.right
                     self.velocity.x = 0
+                    self.collide_left = True
 
         self.acceleration.x = 0
 
     def update_y(self, shapes):
-        self.grounded = False
+        self.collide_down = False
+        self.collide_top = False
 
         self.velocity.y += self.acceleration.y
         self.clamp_speed()
@@ -266,18 +272,18 @@ class Body:
                 if self.shape.bottom > body.top:
                     self.shape.bottom = body.top
                     self.velocity.y = 0
-                    self.grounded = True
+                    self.collide_down = True
         elif self.velocity.y < 0:
             # we are going up
             for body in intersect:
                 if body.bottom > self.shape.top:
                     self.shape.top = body.bottom
                     self.velocity.y = 0
+                    self.collide_top = True
 
         self.acceleration.y = 0
 
     def clamp_speed(self):
-        prev = self.velocity.copy()
         if self.max_velocity.x is not None:
             self.velocity.x = clamp(self.velocity.x, -self.max_velocity.x, self.max_velocity.x)
         if self.max_velocity.y is not None:

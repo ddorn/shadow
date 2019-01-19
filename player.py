@@ -6,8 +6,10 @@ from physics import Body, AABB
 MAX_PLAYER_SPEED = (3, 6)
 JUMP_IMPULSE = -3
 JUMP_DURATION = 30
+WALLJUMP_DURATION = 40
 JUMP_BRAKE_STRENGTH = 2
 WALK_ACCELERATION = 0.2
+WALLJUMP_IMPULSE = (3, -3.5)
 HOVERING_GRAVITY_FACTOR = 0.5
 
 
@@ -20,6 +22,7 @@ class Player:
         self.direction = [False, False]
         self.jumping = False
         self.hovering = False
+        self.wall_jump = 0
         self.jump_frames = 0
 
         shape = AABB((42, 8), self.img.get_size())
@@ -34,9 +37,17 @@ class Player:
         if e.type == pygame.KEYDOWN:
             if e.key == pygame.K_SPACE:
                 self.hovering = True
-                if self.body.grounded:
+                if self.body.collide_down:
                     self.jumping = True
                     self.body.velocity.y += JUMP_IMPULSE
+                elif self.body.collide_left:
+                    self.jumping = False
+                    self.wall_jump = 1
+                    self.body.velocity = Pos(WALLJUMP_IMPULSE)
+                elif self.body.collide_right:
+                    self.jumping = False
+                    self.wall_jump = -1
+                    self.body.velocity = Pos(-WALLJUMP_IMPULSE[0], WALLJUMP_IMPULSE[1])
             elif e.key == pygame.K_LEFT:
                 self.direction[0] = True
             elif e.key == pygame.K_RIGHT:
@@ -46,6 +57,7 @@ class Player:
             if e.key == pygame.K_SPACE:
                 self.jumping = False
                 self.hovering = False
+                self.wall_jump = 0
                 self.jump_frames = 0
             elif e.key == pygame.K_LEFT:
                 self.direction[0] = False
@@ -66,6 +78,10 @@ class Player:
             # we almost cancel gravity for the first frames and then less and less
             ay = self.body.space.gravity.y * clamp(1 - self.jump_frames / JUMP_DURATION, 0, 1)
             self.jump_frames += 1
+        elif self.wall_jump:
+            ay = self.body.space.gravity.y * clamp(1 - self.jump_frames / WALLJUMP_DURATION, 0, 1)
+            # self.body.acceleration.x += self.wall_jump * ay
+            self.jump_frames += 1
         elif self.hovering:
             # if we go down when hovering, we reduce the gravity
             if self.body.velocity.y > 0:
@@ -73,7 +89,7 @@ class Player:
 
         # after a jump we want to quickly start going down for more control
         # hovering but going up is not wanted
-        if not self.jumping and self.body.velocity.y < 0:
+        if not self.jumping and not self.wall_jump and self.body.velocity.y < 0:
             self.body.velocity.y /= JUMP_BRAKE_STRENGTH
 
         self.body.acceleration.y -= ay
