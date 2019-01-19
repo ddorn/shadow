@@ -118,7 +118,7 @@ class App:
 
     def create_shadow_walls(self, screensize):
         shadow_block = self.map.shadow_blockers()
-        bound = pygame.Rect((0, 0), screensize)
+        bound = pygame.Rect(-5, -5, screensize[0] + 10, screensize[1] + 10)
         shadow_block.extend(segments((bound.topleft, bound.topright,
                                       bound.bottomright, bound.bottomleft)))
         return shadow_block
