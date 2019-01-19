@@ -7,7 +7,7 @@ from graphalama.text import SimpleText
 from visibility import VisibiltyCalculator
 
 from apple import Map
-from maths import segments, Pos
+from maths import segments, Pos, expand_poly
 from physics import Space, AABB
 from player import Player
 from vfx import np_limit_visibility, get_light_mask
@@ -22,6 +22,7 @@ LIGHT_COLOR = (255, 170, 100)
 SHADOW_COLOR = (20, 70, 80)
 SHADOW_COLOR = (0, 0, 0)
 SIGHT = 160
+SHADOW_POLY_EXTEND = 5
 SPEED = 10
 
 
@@ -139,6 +140,7 @@ class App:
     def update_light_mask(self):
         if self.light_mask is None or self.frame % 2 == 0:
             visible_poly = self.shadow_caster.visible_polygon(self.player.light_pos)
+            visible_poly = expand_poly(visible_poly, self.player.light_pos, SHADOW_POLY_EXTEND)
             self.light_mask = get_light_mask(visible_poly, self.player.light_pos, self.sight, self.frame // 6 % 10)
             self.light_mask_view_point = self.player.light_pos
 
