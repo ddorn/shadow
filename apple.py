@@ -103,6 +103,7 @@ class Map(dict):
 
     def __init__(self, tiles=(), **kwargs):
         self.tiles = tiles  # type: List[Tile]
+        self.image_cache = dict()
 
         super().__init__(**kwargs)
 
@@ -131,6 +132,14 @@ class Map(dict):
             map_[(x, y)] = tile
 
         return map_
+
+    def get_chached_image_at(self, pos, scale=4):
+        if (pos, scale) in self.image_cache:
+            return self.image_cache[pos, scale]
+
+        img = self.get_image_at(pos, scale)
+        self.image_cache[pos, scale] = img
+        return img
 
     def get_image_at(self, pos, scale=4):
         tile_index = self[pos]

@@ -3,13 +3,14 @@
 from math import floor
 
 import pygame
+from graphalama.text import SimpleText
 from visibility import VisibiltyCalculator
 
 from apple import Map
 from maths import segments, Pos
 from physics import Space, AABB
 from player import Player
-from vfx import np_limit_visibility
+from vfx import np_limit_visibility, get_light_mask
 
 pygame.init()
 
@@ -17,8 +18,10 @@ BLOCK_SIZE = 16
 GAME_SIZE = (480, 270)
 SCREEN_SIZE = (1920, 1080)
 LIGHT_COLOR = (248 // 2, 235 // 2, 68 // 2, 255)
+LIGHT_COLOR = (255, 170, 100)
 SHADOW_COLOR = (20, 70, 80)
-SIGHT = 120
+SHADOW_COLOR = (0, 0, 0)
+SIGHT = 160
 SPEED = 10
 
 
@@ -40,7 +43,9 @@ class App:
         self.stop = False
         self.player = Player()
         self.space = self.create_space()
-        self.dirt_img = pygame.image.load('assets/dirt.png').convert()
+        self.light_mask = None
+        self.light_mask_view_point = self.player.light_pos
+        self.fps_text = SimpleText("Coucou", (20, 20), color=(255, 180, 180))
 
     def run(self):
         while not self.stop:
@@ -51,10 +56,13 @@ class App:
 
             self.render(self.back_screen)
             self.do_shadow()
+            self.fps_text.render(self.display)
 
             pygame.display.update()
+
             self.clock.tick(self.FPS)
             print("FPS:", round(self.clock.get_fps()), end='\r')
+            self.fps_text.text = f"FPS: {round(self.clock.get_fps())}"
 
     def event_loop(self):
         for e in pygame.event.get():
@@ -83,6 +91,7 @@ class App:
 
         self.space.simulate()
         self.player.update()
+
         if self.MOUSE_CONTROL:
             self.player.body.shape.topleft = Pos(pygame.mouse.get_pos()) // 6
 
@@ -90,12 +99,12 @@ class App:
         surf.fill(LIGHT_COLOR)
         # platforms
         for pos in self.map:
-            img = self.map.get_image_at(pos, 1)
+            img = self.map.get_chached_image_at(pos, 1)
             r = self.map.pos_to_rect(pos)
             surf.blit(img, r)
 
-        for a, b in self.map.shadow_blockers():
-            pygame.draw.line(surf, (255, 0, 0), a, b)
+        # for a, b in self.map.shadow_blockers():
+        #     pygame.draw.line(surf, (255, 0, 0), a, b)
 
         self.player.render(surf)
 
@@ -104,35 +113,17 @@ class App:
         s.fill(SHADOW_COLOR)
 
         if self.ENABLE_SHADOW:
-            visible_poly = self.shadow_caster.visible_polygon(self.player.light_pos)
-            rect = np_limit_visibility(self.back_screen, visible_poly, self.player.light_pos, self.sight,
-                                       self.frame // 5 % 8)
-            s.blit(self.back_screen, rect.topleft, rect)
+            self.update_light_mask()
+            rect = np_limit_visibility(self.back_screen, self.light_mask_view_point, self.light_mask)
+            s.blit(self.back_screen, (0, 0))
         else:
             s.blit(self.back_screen, (0, 0))
 
-        if self.BLIT_MODE == 0:
-            s = pygame.transform.scale(s, SCREEN_SIZE, self.display)
-        elif self.BLIT_MODE == 1:
-            s = pygame.transform.smoothscale(s, SCREEN_SIZE)
-        elif self.BLIT_MODE == 2:
-            # we do nothing
-            pass
-        elif self.BLIT_MODE == 3:
-            s = pygame.transform.scale2x(s)
-        elif self.BLIT_MODE == 4:
-            s = pygame.transform.scale2x(s)
-            s = pygame.transform.scale2x(s)
-        else:
-            scale = self.BLIT_MODE - 3
-            s = pygame.transform.scale(s, (GAME_SIZE[0] * scale, GAME_SIZE[1] * scale))
-
-
-        self.display.blit(s, (0, 0))
+        pygame.transform.scale(s, SCREEN_SIZE, self.display)
 
     def create_shadow_walls(self, screensize):
         shadow_block = self.map.shadow_blockers()
-        bound = pygame.Rect((0, 0), GAME_SIZE)
+        bound = pygame.Rect((0, 0), screensize)
         shadow_block.extend(segments((bound.topleft, bound.topright,
                                       bound.bottomright, bound.bottomleft)))
         return shadow_block
@@ -149,6 +140,12 @@ class App:
         self.player.body.space = space
 
         return space
+
+    def update_light_mask(self):
+        if self.light_mask is None or self.frame % 3 == 0:
+            visible_poly = self.shadow_caster.visible_polygon(self.player.light_pos)
+            self.light_mask = get_light_mask(visible_poly, self.player.light_pos, self.sight, self.frame // 6 % 10)
+            self.light_mask_view_point = self.player.light_pos
 
 
 if __name__ == '__main__':

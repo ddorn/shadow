@@ -283,9 +283,6 @@ class Body:
         if self.max_velocity.y is not None:
             self.velocity.y = clamp(self.velocity.y, -self.max_velocity.y, self.max_velocity.y)
 
-        if self.velocity != prev:
-            print("VELOCITY CLAMPED:", prev)
-
 
 class Space:
     def __init__(self, gravity=(0, 0)):

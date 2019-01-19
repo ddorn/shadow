@@ -10,6 +10,7 @@ from maths import clip_poly_to_rect, Pos
 
 DOWNSCALE = 1
 BLUR = 15 // DOWNSCALE
+MIN_SHADOW = 20
 
 
 @lru_cache()
@@ -99,12 +100,27 @@ def np_get_alpha_visibility(visible_poly, sight_range, variant=0):
     light_mask[~invisible] = 0
 
     # and we blur it for a bleeding / bloom effect
-    light_mask = scipy.ndimage.gaussian_filter(light_mask, 3)
+    # big_blur = scipy.ndimage.gaussian_filter(light_mask, BLUR)
+    # small_blur = scipy.ndimage.gaussian_filter(light_mask, 3)
+    # light_mask = np.maximum(small_blur, big_blur)
+
+    big_blur = scipy.ndimage.uniform_filter(light_mask, 4*BLUR)
+    small_blur = scipy.ndimage.gaussian_filter(light_mask, 4)
+    light_mask = np.maximum(small_blur, big_blur)
+    light_mask[light_mask < MIN_SHADOW] = MIN_SHADOW
+
 
     return light_mask
 
 
-def np_limit_visibility(surf: pygame.Surface, visible_poly, view_point, sight_range=100, variant=0):
+def get_light_mask(visible_poly, view_point, sight_range=100, variant=0):
+    # we make a downscaled version and we'll scale it up
+    visible_poly = tuple(tuple((Pos(p) - view_point) / DOWNSCALE) for p in visible_poly)
+    light_mask = np_get_alpha_visibility(visible_poly, sight_range, variant)
+
+    return light_mask
+
+def np_limit_visibility(surf: pygame.Surface, view_point, light_mask: np.ndarray):
     """
 
     surf: surface with the graphics to limit visibility. must be pygame.SRCALPHA
@@ -114,18 +130,16 @@ def np_limit_visibility(surf: pygame.Surface, visible_poly, view_point, sight_ra
     :return: a rect of the area where there is light
     """
 
+    # assuming square mask
+    sight_range = light_mask.shape[0] // 2
     topleft = (view_point[0] - sight_range,
                view_point[1] - sight_range)
 
     # alpha chanel of the texture
     alpha = pygame.surfarray.pixels_alpha(surf)
 
-    # we make a downscaled version and we'll scale it up
-    visible_poly = [(Pos(p) - view_point) / DOWNSCALE for p in visible_poly]
-    light_mask = np_get_alpha_visibility(visible_poly, sight_range, variant)
-
     # zero it
-    alpha[:] = 0
+    alpha[:] = MIN_SHADOW
     # add the light
     np_blit(alpha, light_mask, topleft)
 
