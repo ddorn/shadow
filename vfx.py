@@ -10,7 +10,6 @@ from maths import clip_poly_to_rect, Pos
 
 DOWNSCALE = 1
 BLUR = 15 // DOWNSCALE
-MIN_SHADOW = 20
 
 
 @lru_cache()
@@ -29,8 +28,11 @@ def np_light_mask(radius, variant=0):
 
 
 def np_blit_rect(dest, surf, pos):
-    w, h = dest.shape
-    sw, sh = surf.shape
+    w = dest.shape[0]
+    h = dest.shape[1]
+
+    sw = surf.shape[0]
+    sh = surf.shape[1]
 
     # blit start position (on dest)
     x, y = map(int, pos)
@@ -63,6 +65,11 @@ def np_blit_rect(dest, surf, pos):
 def np_blit(dest, surf, pos):
     x1, x2, y1, y2, a1, a2, b1, b2 = np_blit_rect(dest, surf, pos)
     dest[x1:x2, y1:y2] = surf[a1:a2, b1:b2]
+
+def np_blit_center(dest, surf, center):
+    pos = center[0] - surf.shape[0] // 2, center[1] - surf.shape[1] // 2
+    np_blit(dest, surf, pos)
+
 
 
 def np_get_alpha_visibility(visible_poly, sight_range, variant=0):
@@ -104,11 +111,9 @@ def np_get_alpha_visibility(visible_poly, sight_range, variant=0):
     # small_blur = scipy.ndimage.gaussian_filter(light_mask, 3)
     # light_mask = np.maximum(small_blur, big_blur)
 
-    big_blur = scipy.ndimage.uniform_filter(light_mask, 4*BLUR)
+    big_blur = scipy.ndimage.uniform_filter(light_mask, sight_range / 10)
     small_blur = scipy.ndimage.gaussian_filter(light_mask, 4)
     light_mask = np.maximum(small_blur, big_blur)
-    light_mask[light_mask < MIN_SHADOW] = MIN_SHADOW
-
 
     return light_mask
 
@@ -120,7 +125,7 @@ def get_light_mask(visible_poly, view_point, sight_range=100, variant=0):
 
     return light_mask
 
-def np_limit_visibility(surf: pygame.Surface, view_point, light_mask: np.ndarray):
+def np_limit_visibility(surf: pygame.Surface, view_point, light_mask: np.ndarray, light_color=(255, 255, 255)):
     """
 
     surf: surface with the graphics to limit visibility. must be pygame.SRCALPHA
@@ -139,7 +144,7 @@ def np_limit_visibility(surf: pygame.Surface, view_point, light_mask: np.ndarray
     alpha = pygame.surfarray.pixels_alpha(surf)
 
     # zero it
-    alpha[:] = MIN_SHADOW
+    alpha[:] = 0
     # add the light
     np_blit(alpha, light_mask, topleft)
 

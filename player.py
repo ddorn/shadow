@@ -1,5 +1,6 @@
 import pygame
 
+from light import Light
 from maths import Pos, approx, clamp
 from physics import Body, AABB
 
@@ -11,6 +12,8 @@ JUMP_BRAKE_STRENGTH = 2
 WALK_ACCELERATION = 0.2
 WALLJUMP_IMPULSE = (3, -3.5)
 HOVERING_GRAVITY_FACTOR = 0.5
+LIGHT_COLOR = (255, 170, 100)
+SIGHT = 160
 
 
 class Player:
@@ -27,6 +30,8 @@ class Player:
 
         shape = AABB((42, 8), self.img.get_size())
         self.body = Body(shape, MAX_PLAYER_SPEED, moving=True)
+
+        self.light = Light(self.light_pos, LIGHT_COLOR, SIGHT)
 
     @property
     def light_pos(self):
@@ -65,6 +70,7 @@ class Player:
                 self.direction[1] = False
 
     def update(self):
+        self.light.pos = self.light_pos
 
         if self.direction[0] == self.direction[1]:
             self.body.velocity.x = 0
