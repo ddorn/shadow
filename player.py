@@ -1,7 +1,7 @@
 import pygame
 
 from light import Light
-from maths import Pos, approx, clamp
+from maths import Pos, clamp
 from physics import Body, AABB
 
 MAX_PLAYER_SPEED = (3, 6)
@@ -12,7 +12,7 @@ JUMP_BRAKE_STRENGTH = 2
 WALK_ACCELERATION = 0.2
 WALLJUMP_IMPULSE = (3, -3.5)
 HOVERING_GRAVITY_FACTOR = 0.5
-LIGHT_COLOR = (255, 130, 80)
+# LIGHT_COLOR = (255, 130, 80)
 LIGHT_COLOR = (100, 100, 100)
 LIGHT_PIERCING = 20
 SIGHT = 32
@@ -20,18 +20,17 @@ SIGHT = 32
 
 class Player:
     def __init__(self):
-        # img = pygame.image.load("assets/flame.png").convert()
-        # self.img = pygame.transform.smoothscale(img, (13, 25))
-        # self.sprite_offset = (0, 16)
-        # shape = AABB((42, 8), (13, 13))
 
+        # image and shape
         img = pygame.image.load("assets/korn.png").convert()
         img.set_colorkey((255, 0, 255))
-        self.img = pygame.transform.scale(img, (13, 16))
+        self._img = img
+        self._img_flipped = pygame.transform.flip(img, True, False)
         self.sprite_offset = (0, 0)
         shape = AABB((42, 8), (13, 16))
 
         self.direction = [False, False]
+        self.looking_left = True
         self.jumping = False
         self.hovering = False
         self.wall_jump = 0
@@ -39,7 +38,14 @@ class Player:
 
         self.body = Body(shape, MAX_PLAYER_SPEED, moving=True)
 
-        self.light = Light(self.light_pos, LIGHT_COLOR, SIGHT, LIGHT_PIERCING)
+        self.light = Light(self.light_pos, LIGHT_COLOR, SIGHT, LIGHT_PIERCING, variants=10)
+
+    @property
+    def img(self):
+        if self.looking_left:
+            return self._img
+        else:
+            return self._img_flipped
 
     @property
     def light_pos(self):
@@ -84,7 +90,9 @@ class Player:
             self.body.velocity.x = 0
         elif self.direction[0]:
             self.body.acceleration.x -= WALK_ACCELERATION
+            self.looking_left = True
         elif self.direction[1]:
+            self.looking_left = False
             self.body.acceleration.x += WALK_ACCELERATION
 
         ay = 0

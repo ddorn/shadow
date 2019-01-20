@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 """
-Another Perfect Lite Level Editor
+Another Perfect Lite Level Editor.
+
+Perfect ? Not yet... for now it works and that's more than enough.
 """
 
 import json
@@ -255,7 +257,7 @@ class Map(dict):
 
         return segments
 
-    def shadow_blockers(self):
+    def light_blockers(self):
         # collision_rects return a rectangle for each part of the line
         rectlines = self.collision_rects()
 

@@ -1,11 +1,19 @@
-from math import sqrt
+"""
+Here you'll find functions to compute geometrical stuff:
+ - Intersections
+ - Clipping polygons
+ - Casting shadow
+ - Expand polygons
+"""
 
 import pygame
+
+# noinspection PyArgumentList
 import visibility
 
 
-# noinspection PyArgumentList
 def Pos(*args):
+    """Just because pycharm was always highlighting my use of Vector2..."""
     return pygame.Vector2(*args)
 
 
@@ -20,18 +28,21 @@ def clamp(x, mini, maxi):
 
 
 def approx(p):
+    """Convert any nested list to a nested list of ints, because floats *****."""
     if isinstance(p, (int, float)):
         return round(p)
     return list(map(approx, p))
 
 
 def cross(a, b, c, d):
+    """Cross product between vector AB and CD."""
     v1 = b[0] - a[0], b[1] - a[1]
     v2 = d[0] - c[0], d[1] - c[1]
     return round(v1[0] * v2[1] - v1[1] * v2[0], 6)
 
 
 def segments(l):
+    """Return all the segments of the list, as if it were a polygon."""
     return zip(l, l[1:] + (l[0],))
 
 
@@ -39,10 +50,10 @@ def intersection(p, q, a, b, full_line=False, both_full=False):
     """
     Find the intersection between the half line [PQ) and the segment [AB].
     If there is no intersection, return None instead
+
     :full_line: if true, check the intersection with (PQ) instead
+    :param both_full: if true check the intersection between the to lines
     """
-    # if full_line:
-    #     print(p, q, a, b)
 
     # \vec{PQ}
     dx, dy = q[0] - p[0], q[1] - p[1]
@@ -73,7 +84,7 @@ def intersection(p, q, a, b, full_line=False, both_full=False):
 
 
 def dist2(a, b):
-    """Return the sqared dist between a and b."""
+    """Return the squared dist between a and b."""
     return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2
 
 
@@ -95,19 +106,25 @@ def find_block_point(source_pos, dir_pos, segment):
 def cast_shadow(walls, pos):
     """Calculate the visible polygon from pos where the sight is blocked by the walls."""
 
+    # NOTE: This function is not used anymore, I use the visibility module instead
+
+    # Before, I was calculating the polygon myself but
+    #   - I'm not good enough to make a great algorithm (myne was n^2 with a big constant and implemented in python
+    #   - A great piece of code already exist, written in C++, and I happend to have written bindings for it...
+
+    # My algorithm is explained here : https://ncase.me/sight-and-light/
+
     # find interesting directions to cast shadow
     seg = [s for p in walls for s in segments(p)]
-
-    return visibility.visible_polygon(pos, seg)
 
     dirs = []
     for poly in walls:
         for point in poly:
-            p = pygame.Vector2(point)
+            p = Pos(p)
             dirs.extend((p.rotate(0.0001), p.rotate(-0.0001)))
 
     inters = list(filter(lambda x: x is not None, (find_block_point(pos, dir, seg) for dir in dirs)))
-    inters.sort(key=lambda p: (pygame.Vector2(p) - pos).as_polar()[1])
+    inters.sort(key=lambda p: (Pos(p) - pos).as_polar()[1])
     return inters
 
 
@@ -116,7 +133,7 @@ def clip_poly_to_rect(poly, rect: pygame.Rect):
     Clip the polygon inside the rectangle.
     Coordinates of points are converted to integer, because floating point arithmetic sucks.
     """
-    # print(poly)
+
     clip = segments((rect.topleft, rect.bottomleft, rect.bottomright, rect.topright))
     poly = approx(poly)
     new_poly = poly
@@ -149,13 +166,6 @@ def clip_poly_to_rect(poly, rect: pygame.Rect):
                 i = round(i[0]), round(i[1])
                 # print(2, i)
                 new_poly.append(i)
-
-            if i is None:
-                print("edge:", edge_start, edge_end)
-                print("e", e, "s", s)
-                print("poly", poly)
-                print("cross1", cross(edge_start, edge_end, edge_start, e))
-                print("cross2", cross(edge_start, edge_end, edge_start, s))
             s = e
 
     return new_poly

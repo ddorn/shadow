@@ -1,3 +1,9 @@
+"""
+Custom physics engine that take care only of AABBs.
+
+Maybe one day it'll get bigger.
+"""
+
 from math import cos, sin, pi, sqrt
 from typing import List
 
@@ -302,6 +308,7 @@ class Space:
                 self.static_bodies.append(body)
             else:
                 self.moving_bodies.append(body)
+            body.space = self
 
     def simulate(self):
         for body in self.moving_bodies:
@@ -317,9 +324,3 @@ class Space:
         # check collision vertically
         for body in self.moving_bodies:
             body.update_y(self.static_bodies)
-
-
-if __name__ == '__main__':
-    a = AABB(0, 0, 5, 5)
-    b = AABB(0, 5, 5, 5)
-    print(a.collide(b))
