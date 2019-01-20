@@ -8,8 +8,7 @@ from scipy.stats import truncnorm
 
 from maths import clip_poly_to_rect, Pos
 
-DOWNSCALE = 1
-BLUR = 15 // DOWNSCALE
+BLUR = 5
 POLY = [None]
 
 
@@ -23,7 +22,7 @@ def np_light_mask(radius, variant=0):
 
     mask[xs, ys] = 255
 
-    mask = scipy.ndimage.filters.gaussian_filter(mask, 7)
+    mask = scipy.ndimage.filters.gaussian_filter(mask, radius / 10)
 
     return mask
 

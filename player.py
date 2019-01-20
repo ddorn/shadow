@@ -12,15 +12,24 @@ JUMP_BRAKE_STRENGTH = 2
 WALK_ACCELERATION = 0.2
 WALLJUMP_IMPULSE = (3, -3.5)
 HOVERING_GRAVITY_FACTOR = 0.5
-LIGHT_COLOR = (255, 170, 100)
-SIGHT = 160
+LIGHT_COLOR = (255, 130, 80)
+LIGHT_COLOR = (100, 100, 100)
+LIGHT_PIERCING = 20
+SIGHT = 32
 
 
 class Player:
     def __init__(self):
-        img = pygame.image.load("assets/fire2.png").convert()
-        img.set_colorkey((255, 255, 255))
-        self.img = pygame.transform.smoothscale(img, (8, 8))
+        # img = pygame.image.load("assets/flame.png").convert()
+        # self.img = pygame.transform.smoothscale(img, (13, 25))
+        # self.sprite_offset = (0, 16)
+        # shape = AABB((42, 8), (13, 13))
+
+        img = pygame.image.load("assets/korn.png").convert()
+        img.set_colorkey((255, 0, 255))
+        self.img = pygame.transform.scale(img, (13, 16))
+        self.sprite_offset = (0, 0)
+        shape = AABB((42, 8), (13, 16))
 
         self.direction = [False, False]
         self.jumping = False
@@ -28,10 +37,9 @@ class Player:
         self.wall_jump = 0
         self.jump_frames = 0
 
-        shape = AABB((42, 8), self.img.get_size())
         self.body = Body(shape, MAX_PLAYER_SPEED, moving=True)
 
-        self.light = Light(self.light_pos, LIGHT_COLOR, SIGHT)
+        self.light = Light(self.light_pos, LIGHT_COLOR, SIGHT, LIGHT_PIERCING)
 
     @property
     def light_pos(self):
@@ -104,7 +112,7 @@ class Player:
         return self.body.shape.pygame_rect
 
     def render(self, display):
-        display.blit(self.img, self.body.shape.topleft)
+        display.blit(self.img, self.body.shape.topleft - self.sprite_offset)
 
     def get_rotated(self, angle: int) -> pygame.Surface:
         return pygame.transform.rotate(self.img, angle)

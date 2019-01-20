@@ -7,12 +7,14 @@ import visibility
 from maths import expand_poly
 from vfx import np_light_mask, get_light_mask, np_blit_rect
 
+MIN_SHADOW = 50
 
 class Light:
-    def __init__(self, pos, color=(255, 255, 255), range=120, variants=10):
+    def __init__(self, pos, color=(255, 255, 255), range=120, piercing=0, variants=10):
         self.variant = 0
         self.color = color
         self.range = range
+        self.piercing = piercing
         self.variants = variants
         self.alpha = np_light_mask(self.range, self.variants)
         self.pos = pos
@@ -59,11 +61,12 @@ class GlobalLightMask:
         # update all lights
         for light in self.lights:
             visible_poly = self.shadow_caster.visible_polygon(light.pos)
-            # visible_poly = expand_poly(visible_poly, light.pos, 3)
+            if light.piercing:
+                visible_poly = expand_poly(visible_poly, light.pos, light.piercing)
             light.update_mask(visible_poly, light.pos)
 
         # reset the mask
-        self.surf_mask.fill((20, 20, 20))
+        self.surf_mask.fill((MIN_SHADOW, MIN_SHADOW, MIN_SHADOW))
 
         # add them all
         for light in self.lights:

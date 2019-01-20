@@ -102,7 +102,7 @@ class App:
                     self.ENABLE_SHADOW = not self.ENABLE_SHADOW
                 elif e.key == pygame.K_p:
                     pygame.image.save(self.display, "shadows.png")
-                    print(f"\033[32mScreenshot saved at '{os.path.abspath('shadows.png')}'.\033[m")
+                    print(f"\033[32mScreenshot saved at '{os.path.abspath('screenshots/shadows.png')}'.\033[m")
                 elif e.key == pygame.K_m:
                     self.MOUSE_CONTROL = not self.MOUSE_CONTROL
                 elif e.key == pygame.K_l:
