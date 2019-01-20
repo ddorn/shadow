@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 import os
+from colorsys import hsv_to_rgb
+from functools import lru_cache
+from random import randint, random
 
 import numpy as np
 import pygame
+from graphalama.draw import polygon
 from graphalama.text import SimpleText
 from visibility import VisibiltyCalculator
 
 from apple import Map
 from light import GlobalLightMask, Light
-from maths import segments, Pos
+from maths import segments, Pos, expand_poly, clip_poly_to_rect
 from physics import Space, AABB
 from player import Player
-from vfx import np_blit_rect
+from vfx import np_blit_rect, POLY
 
 pygame.init()
 
@@ -19,18 +23,40 @@ BLOCK_SIZE = 16
 GAME_SIZE = (480, 270)
 SCREEN_SIZE = (1920, 1080)
 LIGHT_COLOR = (255, 170, 100)
-SKY_COLOR = LIGHT_COLOR
+SKY_COLOR = (255, 255, 255)
 SHADOW_COLOR = (20, 70, 80)
 SHADOW_COLOR = (0, 0, 0)
 SHADOW_POLY_EXTEND = 5
 SPEED = 10
 
+def random_color():
+    hue = random()
+    rgb = hsv_to_rgb(hue, 1, 1)
+    color = [int(c * 255) for c in rgb]
+    return color
+
+@lru_cache(maxsize=None)
+def random_cached_color(*args):
+    return random_color()
+
+
+def gen_random_lights():
+    ret = []
+    for i in range(5):
+        pos = randint(0, GAME_SIZE[0]), randint(0, GAME_SIZE[1])
+        ran = (random() + 1) * 128
+        ran = int(ran // 20 * 20)
+
+        ret.append(Light(pos, random_color(), ran))
+
+    return ret
+
 
 class App:
     FPS = 60
     ENABLE_SHADOW = True
-    BLIT_MODE = 0
     MOUSE_CONTROL = False
+    DEBUG = False
 
     def __init__(self):
         self.display = pygame.display.set_mode(SCREEN_SIZE)  # type: pygame.Surface
@@ -42,7 +68,7 @@ class App:
         self.stop = False
         self.player = Player()
         self.shadow_caster = VisibiltyCalculator(self.create_shadow_walls(GAME_SIZE))
-        lights = [self.player.light, Light((264, 100), (0, 50, 100))]
+        lights = [self.player.light]
         self.light_mask = GlobalLightMask(lights, GAME_SIZE, self.shadow_caster)
         self.space = self.create_space()
         self.fps_text = SimpleText("Coucou", (20, 20), color=(255, 180, 180))
@@ -72,24 +98,30 @@ class App:
             if e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_ESCAPE:
                     self.stop = True
-                elif e.key == pygame.K_t:
+                elif e.key == pygame.K_s:
                     self.ENABLE_SHADOW = not self.ENABLE_SHADOW
                 elif e.key == pygame.K_p:
                     pygame.image.save(self.display, "shadows.png")
                     print(f"\033[32mScreenshot saved at '{os.path.abspath('shadows.png')}'.\033[m")
-                elif e.key == pygame.K_b:
-                    self.BLIT_MODE += 1
-                    self.BLIT_MODE %= 8
                 elif e.key == pygame.K_m:
                     self.MOUSE_CONTROL = not self.MOUSE_CONTROL
+                elif e.key == pygame.K_l:
+                    if len(self.light_mask.lights) == 1:
+                        lights = [self.player.light, *gen_random_lights()]
+                    else:
+                        lights = [self.player.light]
+                    self.light_mask.lights = lights
+                elif e.key == pygame.K_d:
+                    self.DEBUG = not self.DEBUG
             self.player.event_loop(e)
 
     def update(self):
         self.space.simulate()
-        self.player.update()
 
         if self.MOUSE_CONTROL:
-            self.player.body.shape.topleft = Pos(pygame.mouse.get_pos()) // 6
+            self.player.body.shape.center = Pos(pygame.mouse.get_pos()) // 4
+
+        self.player.update()
 
     def render(self, surf):
         surf.fill(SKY_COLOR)
@@ -99,28 +131,25 @@ class App:
             r = self.map.pos_to_rect(pos)
             surf.blit(img, r)
 
-        # for a, b in self.map.shadow_blockers():
-        #     pygame.draw.line(surf, (255, 0, 0), a, b)
+        if self.DEBUG:
+            poly = POLY[0]
+            tl = self.player.light.topleft
+            poly = [(p[0] + tl[0], p[1] + tl[1]) for p in poly]
+            pygame.draw.lines(surf, (0, 0, 0), True, poly)
+
+            for a, b in self.map.shadow_blockers():
+                color = random_cached_color(a, b)
+                pygame.draw.line(surf, color, a, b)
 
         self.player.render(surf)
 
     def do_shadow(self):
         s = pygame.Surface(GAME_SIZE)
-        s.fill(SHADOW_COLOR)
 
         if self.ENABLE_SHADOW:
             self.update_light_mask()
-
-            # pix = pygame.surfarray.pixels3d(self.back_screen)
-            # pix[:] = np.minimum(pix, self.light_mask.mask)
-            # del pix
-            #
-            # pix = pygame.surfarray.pixels_alpha(self.back_screen)
-            # pix[:] = self.light_mask.alpha
-            # del pix
-
             self.back_screen.blit(self.light_mask.surf_mask, (0, 0), None,
-                                  pygame.BLEND_RGB_MIN)
+                                  pygame.BLEND_RGB_MULT)
 
         s.blit(self.back_screen, (0, 0))
 
@@ -147,7 +176,11 @@ class App:
         return space
 
     def update_light_mask(self):
-        self.light_mask.update_mask()
+        if self.frame % 2 == 0:
+            self.light_mask.update_mask()
+        if self.frame % 6 == 0:
+            for l in self.light_mask.lights:
+                l.next_variant()
 
 
 if __name__ == '__main__':

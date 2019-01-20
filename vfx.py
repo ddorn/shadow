@@ -10,6 +10,7 @@ from maths import clip_poly_to_rect, Pos
 
 DOWNSCALE = 1
 BLUR = 15 // DOWNSCALE
+POLY = [None]
 
 
 @lru_cache()
@@ -89,6 +90,7 @@ def np_get_alpha_visibility(visible_poly, sight_range, variant=0):
     visible_poly = clip_poly_to_rect(visible_poly, pygame.Rect(topleft, size))
     # express the poly relatively to the topleft so we can draw it ON the surface
     visible_poly = [(p[0] - topleft[0], p[1] - topleft[1]) for p in visible_poly]
+    POLY[0] = visible_poly
 
     # points inside the visible polygon
     # we use pygame to draw the polygon as it's the fastest thing i've found
@@ -111,16 +113,21 @@ def np_get_alpha_visibility(visible_poly, sight_range, variant=0):
     # small_blur = scipy.ndimage.gaussian_filter(light_mask, 3)
     # light_mask = np.maximum(small_blur, big_blur)
 
-    big_blur = scipy.ndimage.uniform_filter(light_mask, sight_range / 10)
-    small_blur = scipy.ndimage.gaussian_filter(light_mask, 4)
-    light_mask = np.maximum(small_blur, big_blur)
+    big_blur = small_blur = light_mask
 
+    # big_blur = scipy.ndimage.uniform_filter(light_mask, sight_range / 10)
+    # small_blur = scipy.ndimage.gaussian_filter(light_mask, 4)
+    # light_mask = np.maximum(small_blur, big_blur)
+    big_blur = scipy.ndimage.uniform_filter(light_mask, sight_range / 10)
+    #
+    return big_blur
+    # return small_blur
     return light_mask
 
 
 def get_light_mask(visible_poly, view_point, sight_range=100, variant=0):
     # we make a downscaled version and we'll scale it up
-    visible_poly = tuple(tuple((Pos(p) - view_point) / DOWNSCALE) for p in visible_poly)
+    visible_poly = tuple(tuple((Pos(p) - view_point)) for p in visible_poly)
     light_mask = np_get_alpha_visibility(visible_poly, sight_range, variant)
 
     return light_mask

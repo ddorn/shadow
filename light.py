@@ -2,6 +2,7 @@ from functools import lru_cache
 
 import numpy as np
 import pygame
+import visibility
 
 from maths import expand_poly
 from vfx import np_light_mask, get_light_mask, np_blit_rect
@@ -42,23 +43,27 @@ class Light:
         s2.blit(s, (0, 0))
         return s2
 
+    @property
+    def size(self):
+        return 2*self.range, 2*self.range
+
 
 class GlobalLightMask:
     def __init__(self, lights, size, shadow_caster):
         self.lights = lights
         self.size = size
         self.surf_mask = pygame.Surface(size)
-        self.shadow_caster = shadow_caster
+        self.shadow_caster = shadow_caster  # type: visibility.VisibiltyCalculator
 
     def update_mask(self):
         # update all lights
         for light in self.lights:
             visible_poly = self.shadow_caster.visible_polygon(light.pos)
-            visible_poly = expand_poly(visible_poly, light.pos, 3)
+            # visible_poly = expand_poly(visible_poly, light.pos, 3)
             light.update_mask(visible_poly, light.pos)
 
         # reset the mask
-        self.surf_mask.fill((0, 0, 0))
+        self.surf_mask.fill((20, 20, 20))
 
         # add them all
         for light in self.lights:

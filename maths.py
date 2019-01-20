@@ -118,38 +118,44 @@ def clip_poly_to_rect(poly, rect: pygame.Rect):
     """
     # print(poly)
     clip = segments((rect.topleft, rect.bottomleft, rect.bottomright, rect.topright))
+    poly = approx(poly)
     new_poly = poly
-    for edge in approx(clip):
+    for (ax, ay), (bx, by) in clip:
+        edge_start = round(ax), round(ay)
+        edge_end = round(bx), round(by)
+
         # print(edge)
         new_poly, poly = [], new_poly[:]
 
         if not poly:
             return []
 
-        s = approx(poly[-1])
-        for e in approx(poly):
+        s = poly[-1]
+        for e in poly:
 
             i = 0
             # e inside clipping edge
-            if cross(edge[0], edge[1], edge[0], e) <= 0:
+            if cross(edge_start, edge_end, edge_start, e) <= 0:
                 # s outside
-                if cross(edge[0], edge[1], edge[0], s) > 0:
-                    i = intersection(*edge, s, e, True)
+                if cross(edge_start, edge_end, edge_start, s) > 0:
+                    i = intersection(edge_start, edge_end, s, e, True)
                     # print(1, i)
+                    i = round(i[0]), round(i[1])
                     new_poly.append(i)
                 new_poly.append(e)
-            elif cross(edge[0], edge[1], edge[0], s) <= 0:
+            elif cross(edge_start, edge_end, edge_start, s) <= 0:
                 # s inside
-                i = intersection(*edge, s, e, True)
+                i = intersection(edge_start, edge_end, s, e, True)
+                i = round(i[0]), round(i[1])
                 # print(2, i)
                 new_poly.append(i)
 
             if i is None:
-                print("edge:", edge)
+                print("edge:", edge_start, edge_end)
                 print("e", e, "s", s)
-                print("poly", approx(poly))
-                print("cross1", cross(edge[0], edge[1], edge[0], s))
-                print("cross2", cross(edge[0], edge[1], edge[0], s))
+                print("poly", poly)
+                print("cross1", cross(edge_start, edge_end, edge_start, e))
+                print("cross2", cross(edge_start, edge_end, edge_start, s))
             s = e
 
     return new_poly
