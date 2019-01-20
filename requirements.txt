@@ -1,5 +1,5 @@
 scipy
 numpy
 pygame
-graphalama
--e git+https://gitlab.com/dorn/visibility.git#egg=graphalama
+-e git+https://gitlab.com/lama-corp/graphalama.git@dev#egg=graphalama
+-e git+https://gitlab.com/ddorn/visibility.git#egg=visibility
