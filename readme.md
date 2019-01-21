@@ -1,5 +1,7 @@
 # Experimenting with shadows
 
+![shadows](assets/show/shadows.png)
+
 ### Install
 
 Discaimer: this was tested on python 3.7, and should work on 3.6 with `dataclasses` installed, but it wont before.
