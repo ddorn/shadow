@@ -1,3 +1,6 @@
+from colorsys import hsv_to_rgb
+from time import time
+
 import numpy as np
 import pygame
 import visibility
@@ -68,6 +71,25 @@ class Light:
     def size(self):
         return 2*self.range, 2*self.range
 
+
+class RainbowLight(Light):
+    def __init__(self, pos, hue_start: "Between 0 and 1"=0, loop_time=5, range=120, piercing=0, variants=1):
+        self.start = time()
+        self.loop_time = loop_time
+        self.hue_start = hue_start
+        super().__init__(pos, self.color, range, piercing, variants)
+
+    @property
+    def color(self):
+        hue = (self.hue_start + time() - self.start) % self.loop_time
+        hue /= self.loop_time
+        hsv = hsv_to_rgb(hue, 1, 1)
+        return [round(255 * c) for c in hsv]
+
+    @color.setter
+    def color(self, value):
+        # we don't set the color of a rainbow
+        pass
 
 class GlobalLightMask:
     """Base class that take care of merging all the lights together."""

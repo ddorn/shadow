@@ -10,7 +10,7 @@ from graphalama.text import SimpleText
 from visibility import VisibiltyCalculator
 
 from apple import Map
-from light import GlobalLightMask, Light
+from light import GlobalLightMask, Light, RainbowLight
 from maths import segments, Pos
 from physics import Space, AABB
 from player import Player
@@ -43,21 +43,6 @@ def random_cached_color(*args):
     return random_color()
 
 
-def gen_random_lights(nb_lights=5):
-    """Generate nb_lights with a random color, position and range"""
-
-    ret = []
-    for i in range(nb_lights):
-        pos = randint(0, GAME_SIZE[0]), randint(0, GAME_SIZE[1])
-        range_ = (random() + 1) * 128
-        # we take them in steps of 20, to often get the same range -> less mask to calculate when we re-generate
-        range_ = int(range_ // 20 * 20)
-
-        ret.append(Light(pos, random_color(), range_))
-
-    return ret
-
-
 class App:
     FPS = 60
 
@@ -88,7 +73,7 @@ class App:
 
         # Lights
         self.shadow_caster = VisibiltyCalculator(self.create_shadow_walls(GAME_SIZE))
-        lights = [self.player.light, *gen_random_lights()]
+        lights = [self.player.light, *self.gen_lights()]
         self.light_mask = GlobalLightMask(lights, GAME_SIZE, self.shadow_caster)
 
         # UI
@@ -127,7 +112,6 @@ class App:
         #   - [d]   Toggle debug mode
 
         for e in pygame.event.get():
-            # quit
             if e.type == pygame.QUIT:
                 self.stop = True
             if e.type == pygame.KEYDOWN:
@@ -142,7 +126,7 @@ class App:
                     self.MOUSE_CONTROL = not self.MOUSE_CONTROL
                 elif e.key == pygame.K_l:
                     if len(self.light_mask.lights) == 1:
-                        lights = [self.player.light, *gen_random_lights()]
+                        lights = [self.player.light, *self.gen_lights()]
                     else:
                         lights = [self.player.light]
                     self.light_mask.lights = lights
@@ -177,10 +161,8 @@ class App:
         if self.DEBUG:
             # POLY is just a huge and awful hack to ket the last visible polygon generated
             # don't look at it...
-            poly = POLY[0]
             tl = self.player.light_pos
-            poly = [(p[0] + tl[0], p[1] + tl[1]) for p in poly]
-            pygame.draw.lines(surf, (0, 0, 0), True, poly)
+            print(tl)
 
             # segments that block the light
             for a, b in self.map.light_blockers():
@@ -232,6 +214,18 @@ class App:
         if self.frame % 6 == 0:
             for l in self.light_mask.lights:
                 l.next_variant()
+
+    def gen_lights(self):
+        lights = [
+            RainbowLight((100, 140), loop_time=3, range=80, variants=4),
+            RainbowLight((124, 16), loop_time=7, range=150, variants=4),
+            RainbowLight((210, 128), loop_time=10, range=200, variants=4),
+            RainbowLight((310, 112), loop_time=6, range=100, variants=4),
+            RainbowLight((400, 48), loop_time=7, range=100, variants=4),
+            RainbowLight((426, 172), 0.5, loop_time=10, range=150, variants=4),
+        ]
+
+        return lights
 
 
 if __name__ == '__main__':
