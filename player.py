@@ -46,7 +46,7 @@ class Player:
         self.body = Body(shape, max_velocity=MAX_PLAYER_SPEED, moving=True)
 
         self.light = Light(self.light_pos, LIGHT_COLOR, SIGHT, LIGHT_PIERCING, variants=10)
-        self.lights = deque(maxlen=NB_LIGHT + 1)
+        self.lights = []
         self.last_light_emit_time = 0
 
     @property
@@ -128,13 +128,15 @@ class Player:
         # Lights
         if time() - self.last_light_emit_time > LIGHT_EMIT_DELAY:
             self.last_light_emit_time = time()
-            velocity = self.body.velocity + (random(), random())
-            light = LightParticle(self.light_pos, velocity)
+            velocity = self.body.velocity + (random() - 1/2, random() - 1/2)
+            light = LightParticle(self.light_pos, velocity, life_time=10)
             self.lights.append(light)
             self.body.space.add(light)
-            if len(self.lights) == NB_LIGHT + 1:
-                old_light = self.lights.popleft()
-                old_light.space.moving_bodies.remove(old_light)
+        for l in self.lights[:]:
+            l.update()
+            if l.range < 2:
+                self.lights.remove(l)
+                l.space.moving_bodies.remove(l)
 
     def get_rect(self):
         return self.body.shape.pygame_rect
