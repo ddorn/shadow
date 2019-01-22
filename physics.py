@@ -212,8 +212,10 @@ class AABB:
 class Body:
     """A moving object."""
 
-    def __init__(self, shape, max_velocity=(None, None), moving=False, space=None):
+    def __init__(self, shape, mass=1, elasticity=0, max_velocity=(None, None), moving=False, space=None):
 
+        self.elasticity = elasticity
+        self.mass = mass
         self.shape = shape  # type: AABB
         self.space = space  # type: Space
 
@@ -232,8 +234,16 @@ class Body:
         return f"<Body: s {self.shape}, v {self.velocity}, a {self.acceleration}>"
 
     @property
-    def pos(self):
+    def topleft(self):
         return self.shape.topleft
+
+    @property
+    def center(self):
+        return self.shape.center
+
+    @center.setter
+    def center(self, value):
+        self.shape.center = value
 
     def update_x(self, shapes):
         """Updates the position on the x coordinate and check for collision with the shapes."""
@@ -250,14 +260,14 @@ class Body:
             for body in intersect:
                 if body.left < self.shape.right:
                     self.shape.right = body.left
-                    self.velocity.x = 0
+                    self.velocity.x *= -self.elasticity
                     self.collide_right = True
         elif self.velocity.x < 0:
             # we are going left
             for body in intersect:
                 if self.shape.left < body.right:
                     self.shape.left = body.right
-                    self.velocity.x = 0
+                    self.velocity.x *= -self.elasticity
                     self.collide_left = True
 
         self.acceleration.x = 0
@@ -277,14 +287,14 @@ class Body:
             for body in intersect:
                 if self.shape.bottom > body.top:
                     self.shape.bottom = body.top
-                    self.velocity.y = 0
+                    self.velocity.y *= -self.elasticity
                     self.collide_down = True
         elif self.velocity.y < 0:
             # we are going up
             for body in intersect:
                 if body.bottom > self.shape.top:
                     self.shape.top = body.bottom
-                    self.velocity.y = 0
+                    self.velocity.y *= -self.elasticity
                     self.collide_top = True
 
         self.acceleration.y = 0
@@ -312,7 +322,8 @@ class Space:
 
     def simulate(self):
         for body in self.moving_bodies:
-            body.acceleration += self.gravity
+            if body.mass:
+                body.acceleration += self.gravity / body.mass
 
         # check collision horizontally
         # we don't do both at the same time because it simplifies A LOT the thing

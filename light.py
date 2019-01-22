@@ -10,14 +10,15 @@ from vfx import get_light_mask
 
 MIN_SHADOW = 50
 
+
 class Light:
     """The basic class representing a light."""
 
-    def __init__(self, pos, color=(255, 255, 255), range=120, piercing=0, variants=1):
+    def __init__(self, center, color=(255, 255, 255), range=120, piercing=0, variants=1):
         """
         A Light emitter.
 
-        :param pos: position of the light on the screen
+        :param center: position of the light on the screen
         :param color: color of the light
         :param range: number of pixel lit in each direction
         :param piercing: number of pixels that the light can go through walls
@@ -32,16 +33,16 @@ class Light:
         # This will always be an array with 0s where the light from this light can't reach
         # up to 255 when it can
         self.alpha = None  # type: np.ndarray
-        self.pos = pos
+        self.center = center
 
     @property
     def topleft(self):
         """Position to blit the mask"""
-        return self.pos[0] - self.range, self.pos[1] - self.range
+        return self.center[0] - self.range, self.center[1] - self.range
 
     def next_variant(self):
         """On next mask update, the variant will change."""
-        self.variant =  (self.variant + 1) % self.variants
+        self.variant = (self.variant + 1) % self.variants
 
     def update_mask(self, visible_poly, view_point):
         self.alpha = get_light_mask(visible_poly, view_point, self.range, self.variant)
@@ -69,15 +70,15 @@ class Light:
 
     @property
     def size(self):
-        return 2*self.range, 2*self.range
+        return 2 * self.range, 2 * self.range
 
 
 class RainbowLight(Light):
-    def __init__(self, pos, hue_start: "Between 0 and 1"=0, loop_time=5, range=120, piercing=0, variants=1):
+    def __init__(self, center, hue_start: "Between 0 and 1" = 0, loop_time=5, range=120, piercing=0, variants=1):
         self.start = time()
         self.loop_time = loop_time
         self.hue_start = hue_start
-        super().__init__(pos, self.color, range, piercing, variants)
+        super().__init__(center, self.color, range, piercing, variants)
 
     @property
     def color(self):
@@ -91,6 +92,7 @@ class RainbowLight(Light):
         # we don't set the color of a rainbow
         pass
 
+
 class GlobalLightMask:
     """Base class that take care of merging all the lights together."""
 
@@ -103,10 +105,10 @@ class GlobalLightMask:
     def update_mask(self):
         # update all lights
         for light in self.lights:
-            visible_poly = self.shadow_caster.visible_polygon(light.pos)
+            visible_poly = self.shadow_caster.visible_polygon(light.center)
             if light.piercing:
-                visible_poly = expand_poly(visible_poly, light.pos, light.piercing)
-            light.update_mask(visible_poly, light.pos)
+                visible_poly = expand_poly(visible_poly, light.center, light.piercing)
+            light.update_mask(visible_poly, light.center)
 
         # reset the mask
         self.surf_mask.fill((MIN_SHADOW, MIN_SHADOW, MIN_SHADOW))

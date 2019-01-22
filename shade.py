@@ -73,7 +73,7 @@ class App:
 
         # Lights
         self.shadow_caster = VisibiltyCalculator(self.create_shadow_walls(GAME_SIZE))
-        lights = [self.player.light, *self.gen_lights()]
+        lights = [self.player.light]  # , *self.gen_lights()]
         self.light_mask = GlobalLightMask(lights, GAME_SIZE, self.shadow_caster)
 
         # UI
@@ -209,6 +209,7 @@ class App:
         # We update the light masks every second frame, there is no need to do it more often
         # as it means more computation for very noticeable change
         if self.frame % 2 == 0:
+            self.light_mask.lights = self.player.get_all_lights()
             self.light_mask.update_mask()
         # Every 6 frames we cycle through the variants, so the edge of the lights appear wiggling (?) like a fire
         if self.frame % 6 == 0:

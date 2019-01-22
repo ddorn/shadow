@@ -1,6 +1,11 @@
+from collections import deque
+from random import random
+from time import time
+
 import pygame
 
-from light import Light
+from entities import LightParticle
+from light import Light, RainbowLight
 from maths import Pos, clamp
 from physics import Body, AABB
 
@@ -16,6 +21,8 @@ HOVERING_GRAVITY_FACTOR = 0.5
 LIGHT_COLOR = (100, 100, 100)
 LIGHT_PIERCING = 20
 SIGHT = 32
+LIGHT_EMIT_DELAY = 1/2
+NB_LIGHT = 10
 
 
 class Player:
@@ -36,9 +43,11 @@ class Player:
         self.wall_jump = 0
         self.jump_frames = 0
 
-        self.body = Body(shape, MAX_PLAYER_SPEED, moving=True)
+        self.body = Body(shape, max_velocity=MAX_PLAYER_SPEED, moving=True)
 
         self.light = Light(self.light_pos, LIGHT_COLOR, SIGHT, LIGHT_PIERCING, variants=10)
+        self.lights = deque(maxlen=NB_LIGHT + 1)
+        self.last_light_emit_time = 0
 
     @property
     def img(self):
@@ -84,7 +93,7 @@ class Player:
                 self.direction[1] = False
 
     def update(self):
-        self.light.pos = self.light_pos
+        self.light.center = self.light_pos
 
         if self.direction[0] == self.direction[1]:
             self.body.velocity.x = 0
@@ -116,12 +125,26 @@ class Player:
 
         self.body.acceleration.y -= ay
 
+        # Lights
+        if time() - self.last_light_emit_time > LIGHT_EMIT_DELAY:
+            self.last_light_emit_time = time()
+            velocity = self.body.velocity + (random(), random())
+            light = LightParticle(self.light_pos, velocity)
+            self.lights.append(light)
+            self.body.space.add(light)
+            if len(self.lights) == NB_LIGHT + 1:
+                old_light = self.lights.popleft()
+                old_light.space.moving_bodies.remove(old_light)
+
     def get_rect(self):
         return self.body.shape.pygame_rect
 
-    def render(self, display):
+    def render(self, display: pygame.Surface):
         display.blit(self.img, self.body.shape.topleft - self.sprite_offset)
 
     def get_rotated(self, angle: int) -> pygame.Surface:
         return pygame.transform.rotate(self.img, angle)
+
+    def get_all_lights(self):
+        return [self.light, *self.lights]
 
