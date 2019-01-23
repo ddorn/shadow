@@ -174,12 +174,7 @@ class App:
 
         if self.ENABLE_SHADOW:
             self.update_light_mask()
-            # Basically, the surf_mask is a RGB surface where each value represent the amount
-            # of red green and blue light that reached a point
-            # Therefore we multiply it with the real color because that's how light works
-            # I thought it was a minimum for a while, but it isn't
-            self.back_screen.blit(self.light_mask.surf_mask, (0, 0), None,
-                                  pygame.BLEND_RGB_MULT)
+            self.light_mask.apply_light_on(self.back_screen)
 
         # we scale our mini surface to the real one, with the nearest pixel (we don't want to blur
         pygame.transform.scale(self.back_screen, SCREEN_SIZE, self.display)
