@@ -18,7 +18,7 @@ QUADRATIC = 2
 class Light:
     """The basic class representing a light."""
 
-    def __init__(self, center, color=(255, 255, 255), range=120, piercing=0, variants=1, light_shape=GAUSSIAN):
+    def __init__(self, center, color=(255, 255, 255), range=120, piercing=0, variants=1, light_shape=QUADRATIC):
         """
         A Light emitter.
 
@@ -87,9 +87,31 @@ class Light:
 
         return mask
 
+    @staticmethod
+    @lru_cache()
+    def compute_quad_light_mask(radius, variant=0):
+
+        s = pygame.Surface((2*radius, 2*radius))
+        for r in range(radius - 2, 1, -1):
+            intensity = 255 * (1 - (r/radius)**2)
+            # intensity = 255 * (1 - r / radius)
+            pygame.draw.circle(s, (intensity, 0, 0), (radius, radius), r)
+
+        mask = pygame.surfarray.pixels_red(s)
+
+        # We blur everything so light pixels are not alone
+        mask = scipy.ndimage.filters.gaussian_filter(mask, 2)
+
+        return mask
+
+
     @property
     def light_mask(self):
-        return self.compute_gauss_light_mask(self.range, self.variant)
+        if self.light_shape == GAUSSIAN:
+            return self.compute_gauss_light_mask(self.range, self.variant)
+        if self.light_shape == QUADRATIC:
+            return self.compute_quad_light_mask(self.range, self.variant)
+        raise ValueError(f"Unkonwn light shape {self.light_shape}")
 
     def visible_mask(self, visible_poly):
         """
@@ -160,6 +182,7 @@ class Light:
     @property
     def size(self):
         return 2 * self.range, 2 * self.range
+
 
 
 class RainbowLight(Light):

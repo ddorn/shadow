@@ -94,6 +94,9 @@ class Pos:
         """Return the norm of the vector"""
         return sqrt(self.squared_norm())
 
+    def normalise(self):
+        return self / self.norm()
+
     def rotate(self, degree):
         c = cos(pi / 180 * degree)
         s = sin(pi / 180 * degree)

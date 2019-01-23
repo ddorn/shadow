@@ -138,6 +138,17 @@ class Player:
                 self.lights.remove(l)
                 l.space.moving_bodies.remove(l)
 
+
+        # add a spring to the first light
+        # l: LightParticle = self.lights[0]
+        # r = self.body.center - l.center
+        # l0 = r.normalise() * 10
+        # r -= l0
+        # if r.norm() < 10:
+        #     l.velocity /= 1.05
+        #
+        # l.acceleration += 0.01 * r
+
     def get_rect(self):
         return self.body.shape.pygame_rect
 

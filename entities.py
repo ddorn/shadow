@@ -24,8 +24,9 @@ class LightParticle(Body, RainbowLight):
             pass
 
     def update(self):
-        progress = (time() - self.bithdate) / self.life_time
-        self.range = clamp(round((1 - progress) * 40), 0, 40)
+        if self.life_time:
+            progress = (time() - self.bithdate) / self.life_time
+            self.range = clamp(round((1 - progress) * 40), 0, 40)
 
 
     @property
