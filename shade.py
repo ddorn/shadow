@@ -43,6 +43,7 @@ def random_cached_color(*args):
 
 
 class App:
+    UPDATE_FPS = 60
     FPS = 600
 
     # Feature flags
@@ -81,12 +82,16 @@ class App:
         self.bg.fill((50,)*3, None, pygame.BLEND_RGB_ADD)
 
     def run(self):
+        accu = 0
         while not self.stop:
-            self.frame += 1
 
             # Updating
-            self.event_loop()
-            self.update()
+            while accu > 1000 / self.UPDATE_FPS:
+                # We want to get that stable 60 fps update whatever the rendering takes
+                accu -= 1000 / self.UPDATE_FPS
+                self.frame += 1
+                self.event_loop()
+                self.update()
 
             # Rendering is done in two steps
             # First we render our game as we would usualy do, on the back_screen surface
@@ -99,7 +104,7 @@ class App:
             pygame.display.update()
 
             # FPS
-            self.clock.tick(self.FPS)
+            accu += self.clock.tick(self.FPS)
             self.fps_text.text = f"FPS: {round(self.clock.get_fps())}"
 
     def event_loop(self):
