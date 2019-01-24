@@ -1,94 +1,68 @@
 #!/usr/bin/env python3
 
-"""
-Another Perfect Lite Level Editor.
-
-Perfect ? Not yet... for now it works and that's more than enough.
-"""
-
 import json
-from dataclasses import dataclass
-from functools import lru_cache
-from typing import List, Dict
+import os
 from collections import defaultdict
+from functools import lru_cache
+from typing import Dict, List
 
 import pygame
-from graphalama.app import App, Screen
+from graphalama.app import Screen, App
 from graphalama.buttons import CarouselSwitch, Button
 
 from physics import AABB
 
-pygame.init()
-
-EDIT = 1
-
-
-def print_pos_2d(pos):
-    xs, ys = zip(*pos)
-    minx = min(xs)
-    miny = min(ys)
-    maxx = max(xs)
-    maxy = max(ys)
-
-    l = [[" "] * (maxx - minx + 1) for _ in range(maxy - miny + 1)]
-    for x, y in pos:
-        l[y - miny][x - minx] = '\u2588'
-
-    for line in l:
-        print(*line, sep='')
-
-
-@dataclass
-class Point:
-    x: int
-    left: bool
-    belong_to_current_rect: bool = False
-
-    def __hash__(self):
-        return hash(self.x)
-
-    def __eq__(self, other):
-        return isinstance(other, Point) and self.x == other.x
-
-    def __lt__(self, other):
-        return self.x < other.x
-
-    def __repr__(self):
-        return f"{self.x}{'[' if self.left else ']'}"
-
 
 class Tile:
-    def __init__(self, path, size):
-        self.path = path
-        self.sheet = pygame.image.load(path).convert()  # type: pygame.Surface
-        self.sheet.set_colorkey((255, 0, 255))
-        self.size = size
+    solid: bool
+    transparent: bool
+    name: str
+    file_path: str
+    sprite_sheet: pygame.Surface
+    neighbours_patterns: list
+    tile_size: int
 
-    @lru_cache()
-    def get_at(self, x, y):
-        return self.sheet.subsurface((self.size * x, self.size * y, self.size, self.size))
+    def __init__(self, path, tile_size=0, solid=True, transparent=False):
+        self.solid = solid
+        self.transparent = transparent
+        self.file_path = path
+        self.tile_size = tile_size
+        self.load(self.file_path)
 
-    @lru_cache()
-    def get_image(self, neighbors, scale=2):
-        map = [
+    def load(self, path):
+        print("Loading tile set", path)
+        self.sprite_sheet = pygame.image.load(path).convert()
+        self.sprite_sheet.set_colorkey((255, 0, 255))
+        self.name = os.path.basename(path)
+        self.neighbours_patterns = self.load_neighbourg_data(path + ".data")
+
+    def load_neighbourg_data(self, path):
+        return [
             ["? ? ==?=?", "? ?======", "? ?== ?=?", "? ? = ?=?", "===?==?= ", "=====? =?"],
             ["?=? ==?=?", "=========", "?=?== ?=?", "?=? = ?=?", "?= ?=====", " =?==?==="],
             ["?=? ==? ?", "?=?===? ?", "?=?== ? ?", "?=? = ? ?", "? ? ==?= ", "? ?==  =?"],
             ["? ? ==? ?", "? ?===? ?", "? ?== ? ?", "? ? = ? ?", "?=  ==? ?", " =?== ? ?"]
         ]
-        tile_id = neighbors[0][0]
+
+    def get_tile_from_sheet(self, pos):
+        pos = pos[0] * self.tile_size, pos[1] * self.tile_size
+        size = self.tile_size, self.tile_size
+        return  self.sprite_sheet.subsurface((pos, size))
+
+    def get_image(self, neighbours=()):
+        tile_name = neighbours[0][0]
         pos = (1, 1)
-        for Y, line in enumerate(map):
-            for X, patern in enumerate(line):
+        for Y, line in enumerate(self.neighbours_patterns):
+            for X, pattern in enumerate(line):
                 match = True
                 for x in range(3):
                     for y in range(3):
-                        c = patern[3 * y + x]
+                        c = pattern[3 * y + x]
                         if c == '=':
-                            if neighbors[x - 1][y - 1] != tile_id:
+                            if neighbours[x - 1][y - 1] != tile_name:
                                 match = False
                         elif c == ' ':
-                            if neighbors[x - 1][y - 1] == tile_id:
+                            if neighbours[x - 1][y - 1] == tile_name:
                                 match = False
                         elif c == '?':
                             # any tile will do
@@ -97,26 +71,48 @@ class Tile:
                 if match:
                     pos = X, Y
 
-        img = self.get_at(*pos)
-        return pygame.transform.scale(img, (self.size * scale, self.size * scale))
+        img = self.get_tile_from_sheet(pos)
+        return pygame.transform.scale(img, (self.tile_size, self.tile_size))
 
 
-class Map(dict):
+class TileMap:
+    tiles: Dict[tuple, int]
+    tile_objects: List[Tile]
+    tile_size: int
 
-    def __init__(self, tiles=(), **kwargs):
-        self.tiles = tiles  # type: List[Tile]
-        self.image_cache = dict()
+    def __init__(self, tile_objects=None, tiles=None, tile_size=16):
+        self.tile_size = tile_size
+        self.tiles = tiles if tiles is not None else {}
+        self.tile_objects = tile_objects if tile_objects is not None else []
 
-        super().__init__(**kwargs)
+    def world_pos_to_map(self, world_pos):
+        return (world_pos[0] // self.tile_size, world_pos[1] // self.tile_size)
+
+    def map_to_world_pos(self, map_pos):
+        return (map_pos[0] * self.tile_size, map_pos[1] * self.tile_size)
+
+    def tile_at_map_pos(self, map_pos):
+        if map_pos in self.tiles:
+            tile_id = self.tiles[map_pos]
+            return self.tile_objects[tile_id]
+
+        return None
+
+    def tile_at_world_pos(self, world_pos):
+        world_pos = self.world_pos_to_map(world_pos)
+        return self.tile_at_map_pos(world_pos)
 
     def save(self, file='assets/levels/0'):
-        to_save = {}
-        for pos, tile in self.items():
-            to_save[f'{pos[0]} {pos[1]}'] = tile
+        tile_paths = [tile.file_path for tile in self.tile_objects]
 
-        to_save['tiles'] = [(t.path, t.size) for t in self.tiles]
+        tile_map = {}
+        for pos, tile_id in self.tiles.items():
+            tile_map[f'{pos[0]} {pos[1]}'] = tile_id
 
-        s = json.dumps(to_save, indent=4)
+        to_save = dict(tile_paths=tile_paths,
+                       tile_map=tile_map,
+                       tile_size=self.tile_size)
+        s = json.dumps(to_save)
         with open(file, 'w') as f:
             f.write(s)
 
@@ -125,45 +121,44 @@ class Map(dict):
         with open(file, 'r') as f:
             d = json.loads(f.read())
 
-        tiles = d.pop('tiles')
-        tiles = [Tile(*t) for t in tiles]
+        tile_ids = d.pop('tile_map')
+        tile_paths = d.pop('tile_paths')
+        tile_size = d.pop('tile_size')
 
-        map_ = cls(tiles)
-        for pos_string, tile in d.items():
+        tiles = [Tile(path, tile_size) for path in tile_paths]
+
+        map_ = {}
+        for pos_string, tile in tile_ids.items():
             x, y = map(int, pos_string.split())
             map_[(x, y)] = tile
 
+        map_ = cls(tiles, map_, tile_size)
+
         return map_
 
-    def get_chached_image_at(self, pos, scale=4):
-        if (pos, scale) in self.image_cache:
-            return self.image_cache[pos, scale]
-
-        img = self.get_image_at(pos, scale)
-        self.image_cache[pos, scale] = img
-        return img
-
-    def get_image_at(self, pos, scale=4):
-        tile_index = self[pos]
-        tile = self.tiles[tile_index]
-        image = tile.get_image(self.get_neighbors(pos), scale)
-        return image
-
-    def get_neighbors(self, pos):
+    def get_neighbours_name(self, map_pos):
         """Get a table with the neighbors. topleft will be table[-1][-1] and center right will be table[1][0]."""
         neigh = [[None] * 3 for _ in range(3)]
 
         for x in range(-1, 2):
             for y in range(-1, 2):
-                neighbor = pos[0] + x, pos[1] + y
-                tile = self.get(neighbor, None)
+                neighbor = map_pos[0] + x, map_pos[1] + y
+                tile = self.tile_at_map_pos(neighbor)
+                if tile is not None:
+                    tile = tile.name
                 neigh[x][y] = tile
 
         return tuple(tuple(line) for line in neigh)
 
+    @lru_cache(maxsize=None)
+    def get_image_at(self, map_pos, scale):
+        tile = self.tile_at_map_pos(map_pos)
+        image = tile.get_image(self.get_neighbours_name(map_pos))
+        return pygame.transform.scale(image, (scale * self.tile_size, scale * self.tile_size))
+
     def collision_rects(self):
         # we sort them by Y then X
-        positions = [(pos[1], pos[0]) for pos in self.keys()]
+        positions = [(pos[1], pos[0]) for pos in self.tiles]
         positions.sort()
 
         # assuming a constant tile size
@@ -201,174 +196,86 @@ class Map(dict):
         # todo: merge lines with the same width
         return line_rects
 
-    @property
-    def tile_size(self):
-        # assuming that all tiles have the same size
-        if self.tiles:
-            return self.tiles[0].size
-        return 0
-
-    def pos_to_rect(self, pos):
-        s = self.tile_size
-        x = pos[0] * s
-        y = pos[1] * s
-        r = pygame.Rect(x, y, s, s)
-        return r
-
-    def unoptimized_shadow_blockers(self):
-        s = self.tile_size
-        blocks = list(self.keys())
-        edges = set()
-        for x, y in blocks:
-            x = s * x
-            y = s * y
-            edges.add(((x, y), (x + 1, y)))
-            edges.add(((x, y + 1), (x + 1, y + 1)))
-            edges.add(((x, y), (x, y + 1)))
-            edges.add(((x + 1, y), (x + 1, y + 1)))
-
-        return list(edges)
-
-    def _shadow_blocker_helper(self, r, other_line, y):
-        segments = set()
-        left = Point(r.left, True, True)
-        right = Point(r.right, False, True)
-        points = {left, right}
-        for a in other_line:
-            points.add(Point(a.left, True))
-            points.add(Point(a.right, False))
-
-        # We care only about points between the borders of the rect
-        points = sorted(points)
-        begin = points.index(left)
-        end = points.index(right)
-        points = points[begin:end + 1]
-
-        # the non visible segments are the one that start with left[ and end with right]
-        # so we add all the other to se wall segments
-        for (a, b) in zip(points[:-1], points[1:]):
-            if a.belong_to_current_rect and b.belong_to_current_rect:
-                # there is nothing in between (this case is a [ ] but we still want the segment)
-                segments.add(((a.x, y), (b.x, y)))
-            elif a.left and not b.left:
-                pass
-            else:
-                segments.add(((a.x, y), (b.x, y)))
-
-        return segments
-
     def light_blockers(self):
-        # collision_rects return a rectangle for each part of the line
-        rectlines = self.collision_rects()
-
         segments = set()
+        for pos in self.tiles:
+            tile = self.tile_at_map_pos(pos)
+            if tile.transparent:
+                continue
+            x, y = pos
+            segs = [
+                ((x, y), (x + 1, y)),
+                ((x, y + 1), (x + 1, y + 1)),
+                ((x, y), (x, y + 1)),
+                ((x + 1, y), (x + 1, y + 1)),
+            ]
 
-        # For the vertical part, it's easy, ase there is no overlapping
-        for r in rectlines:
-            r = r.pygame_rect
-            segments.add((r.topleft, r.bottomleft))
-            segments.add((r.topright, r.bottomright))
+            for seg in segs:
+                if seg in segments:
+                    # If it's already there, it's an edge between to blocks -> not visible
+                    segments.remove(seg)
+                else:
+                    segments.add(seg)
+
+        # At this point we have a set of unique edges that are between transparent and visible blocks
+        # we want to combine edges that are aligned to have less of them
+
+        # we class them by start position
+        start_dict = defaultdict(list)
 
 
-        # but sometimes rectangles are like this :
-        #  ____    _
-        # |____|__|_|
-        #    |____|
-        #
-        # so we need to remove the common parts
+        # all segments should be either vertical or horizontal
+        horizontal = sorted(s for s in segments if s[0][0] == s[1][0])
+        vertical = sorted([s for s in segments if s[0][1] == s[1][1]],
+                          key=lambda x: (x[0][1], x[0][0]))  # sorted according to Y first
+        final = []
 
-        # class the rects by line
-        lines = defaultdict(list)  # type: Dict[int, pygame.Rect]
-        for line in rectlines:
-            lines[line.y].append(line)
-        ys = sorted(lines.keys())
-        for y in ys:
-            line_before = lines[y - self.tile_size]
-            line_after = lines[y + self.tile_size]
+        s = horizontal.pop(0)
+        for next_seg in horizontal:
+            if s[1] == next_seg[0]:
+                s = s[0], next_seg[1]
+            else:
+                final.append(s)
+                s = next_seg
+        final.append(s)
 
-            for r in lines[y]:
-                segments.update(self._shadow_blocker_helper(r, line_before, y))
-                segments.update(self._shadow_blocker_helper(r, line_after, y + self.tile_size))
+        s = vertical.pop(0)
+        for next_seg in vertical:
+            if s[1] == next_seg[0]:
+                s = s[0], next_seg[1]
+            else:
+                final.append(s)
+                s = next_seg
+        final.append(s)
 
-        return list(segments)
+        # scale everything right
+        p = self.tile_size
+        final = [((s[0][0] * p, s[0][1] * p), (s[1][0] * p, s[1][1] * p)) for s in final]
 
-    def get_shadow_blockers(self):
+        return final
 
-        directions = ((1, 0), (0, 1), (-1, 0), (0, -1))
-        height_directions = directions + ((1, 1), (1, -1), (-1, -1), (-1, 1))
+    def add_new_tile_type(self, path, *args, **kwargs):
+        tile = Tile(path, *args, **kwargs)
+        tile.tile_size = self.tile_size
+        self.tile_objects.append(tile)
 
-        # STEP 0: Separate tiles in connex block, with a floodfill
-        # But we keep only block that touch the air
-        def touches_air(pos):
-            for dx, dy in height_directions:
-                new_pos = pos[0] + dx, pos[1] + dy
-                if self.get(new_pos) is None:
-                    return True
-            return False
+    def add_tile(self, pos, tile_id):
+        self.get_image_at.cache_clear()
+        self.tiles[pos] = tile_id
 
-        tiles = set(self.keys())
-        blocks = []
-        while tiles:
-            heads = [tiles.pop()]
-            block = []
-            while heads:
-                head = heads.pop()
-                if touches_air(head):
-                    block.append(head)
+    def remove_tile(self, pos):
+        self.get_image_at.cache_clear()
+        self.tiles.pop(pos, None)
 
-                # on each side
-                for dx, dy in directions:
-                    new_head = head[0] + dx, head[1] + dy
-                    if new_head in tiles:
-                        tiles.remove(new_head)
-                        heads.append(new_head)
-            blocks.append(block)
-            print_pos_2d(block)
-
-        # STEP 1: We follow the edge in clockwise order
-
-        def find_next(current, direction, points):
-            """Find the segment following this one, turning in clockwise order"""
-
-            # Directions are >v<^, we check first the one before
-            # then the same direction then the next one
-            # so we go in CW order
-            directions_to_check = (direction - 1,
-                                   direction,
-                                   direction + 1)
-            # normalisation
-            directions_to_check = (d % 4 for d in directions_to_check)
-
-            for d in directions_to_check:
-                dx, dy = directions[d]
-                next_pos = current[0] + dx, current[1] + dy
-                if next_pos in points:
-                    return next_pos, d
-
-            return None, None
-
-        paths = []
-        for block in blocks:
-            # 0 = right
-            # 1 = down
-            # 2 = left
-            # 3 = up
-            direction = 0
-            block = sorted(block)
-            path = []
-            start = block[0]
-            current = start
-
-            while current is not None:
-                path.append(current)
-                current, direction = find_next(current, direction, block)
-
-                # This is the stop condition
-                if current == start:
-                    current = None
-            paths.append(path)
-
-        return paths
+    def render(self, surf, scale=1, offset=(0, 0)):
+        for pos, tile_id in self.tiles.items():
+            tile = self.tile_objects[tile_id]
+            if tile.transparent:
+                continue
+            img = self.get_image_at(pos, scale)
+            topleft = self.map_to_world_pos(pos)
+            topleft = topleft[0] + offset[0], topleft[1] + offset[1]
+            surf.blit(img, topleft)
 
 
 class EditScreen(Screen):
@@ -386,8 +293,12 @@ class EditScreen(Screen):
 
         # map
         self.tile_size = 16
-        tiles = [Tile("assets/dirt_sheet.png", self.tile_size)]
-        self.map = Map.load()
+        try:
+            self.map = TileMap.load()
+        except:
+            print("Cannot load map")
+            self.map = TileMap()
+            self.map.add_new_tile_type("assets/dirt_sheet.png")
         self._tile_index = 0
 
         # editor settings
@@ -401,11 +312,11 @@ class EditScreen(Screen):
 
     @tile_index.setter
     def tile_index(self, value):
-        self._tile_index = value % len(self.map.tiles)
+        self._tile_index = value % len(self.map.tile_objects)
 
     @property
     def current_tile(self):
-        return self.map.tiles[self.tile_index]
+        return self.map.tile_objects[self.tile_index]
 
     def tool_change(self, tool_name: str):
         self.tool = getattr(self, tool_name.upper(), self.BRUSH)
@@ -429,24 +340,21 @@ class EditScreen(Screen):
                 self.tool_carousel.option_index = self.tool_carousel.options.index("Eraser")
 
     def internal_logic(self):
-
         if self.drawing:
             pos = pygame.mouse.get_pos()
             pos = self.screen_to_pos(pos)
 
             if self.tool == self.BRUSH:
-                self.map[pos] = self.tile_index
+                self.map.add_tile(pos, self.tile_index)
             elif self.tool == self.ERASER:
-                self.map.pop(pos, None)
+                self.map.remove_tile(pos)
 
     def render(self, display):
         self.draw_background(display)
 
         # draw tiles
-        for pos, tile_i in self.map.items():
-            # tile = self.tiles[tile_i]
+        for pos in self.map.tiles:
             image = self.map.get_image_at(pos, self.scale)
-            # image = tile.get_image(self.get_neighbors(pos), self.scale)
             display.blit(image, self.pos_to_screen(pos))
 
         self.widgets.render(display)
@@ -460,11 +368,12 @@ class EditScreen(Screen):
         return screen[0] // tot_scale, screen[1] // tot_scale
 
     def reset(self):
-        self.map.clear()
+        self.map.tiles.clear()
 
     def save(self):
         self.map.save()
 
+EDIT = 1
 
 class Apple(App):
     SCREEN_SIZE = (1600, 1008)
@@ -480,13 +389,10 @@ class Apple(App):
 
 
 def main():
+    pygame.init()
     Apple().run()
     pygame.quit()
 
 
 if __name__ == '__main__':
     main()
-    m = Map.load()
-    for s in m.get_shadow_blockers():
-        print(len(s), "\t:  ", s)
-    # print(m.get_shadow_blockers())

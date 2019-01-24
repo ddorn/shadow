@@ -3,18 +3,17 @@
 import os
 from colorsys import hsv_to_rgb
 from functools import lru_cache
-from random import randint, random
+from random import random
 
 import pygame
 from graphalama.text import SimpleText
 from visibility import VisibiltyCalculator
 
-from apple import Map
-from light import GlobalLightMask, Light, RainbowLight
+from apple import TileMap
+from light import GlobalLightMask, RainbowLight
 from maths import segments, Pos
 from physics import Space, AABB
 from player import Player
-from vfx import POLY
 
 pygame.init()
 
@@ -44,7 +43,7 @@ def random_cached_color(*args):
 
 
 class App:
-    FPS = 60
+    FPS = 600
 
     # Feature flags
     ENABLE_SHADOW = True  # [s] to toggle shadows
@@ -64,7 +63,7 @@ class App:
         self.stop = False
 
         # Environment
-        self.map = Map.load('assets/levels/0')
+        self.map = TileMap.load('assets/levels/0')
         self.walls = self.map.collision_rects()
 
         # Physics
@@ -74,10 +73,12 @@ class App:
         # Lights
         self.shadow_caster = VisibiltyCalculator(self.create_shadow_walls(GAME_SIZE))
         lights = [self.player.light]  # , *self.gen_lights()]
-        self.light_mask = GlobalLightMask(lights, GAME_SIZE, self.shadow_caster)
+        self.light_mask = GlobalLightMask(lights, GAME_SIZE, self.shadow_caster, (30, 30, 30))
 
         # UI
         self.fps_text = SimpleText("Be love", (20, 20), color=(255, 180, 180))
+        self.bg = pygame.image.load("assets/bg.gif").convert()  # type: pygame.Surface
+        self.bg.fill((50,)*3, None, pygame.BLEND_RGB_ADD)
 
     def run(self):
         while not self.stop:
@@ -147,13 +148,11 @@ class App:
         self.player.update()
 
     def render(self, surf):
-        surf.fill(SKY_COLOR)
+        # surf.fill(SKY_COLOR)
+        surf.blit(self.bg, (0, 0))
 
         # Platforms
-        for pos in self.map:
-            img = self.map.get_chached_image_at(pos, 1)
-            r = self.map.pos_to_rect(pos)
-            surf.blit(img, r)
+        self.map.render(surf)
 
         # Player
         self.player.render(surf)
