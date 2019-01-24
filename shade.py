@@ -163,11 +163,6 @@ class App:
         self.player.render(surf)
 
         if self.DEBUG:
-            # POLY is just a huge and awful hack to ket the last visible polygon generated
-            # don't look at it...
-            tl = self.player.light_pos
-            print(tl)
-
             # segments that block the light
             for a, b in self.map.light_blockers():
                 color = random_cached_color(a, b)

@@ -222,30 +222,35 @@ class TileMap:
 
         # we class them by start position
         start_dict = defaultdict(list)
+        for s in sorted(segments):
+            start_dict[s[0]].append(s)
 
+        def same_orientation(s1, s2):
+            # check collinearity
+            (ax, ay), (bx, by) = s1
+            (cx, cy), (dx, dy) = s2
+            ab = bx - ax, by - ay
+            cd = dx - cx, dy - cy
+            return ab[0] * cd[1] - ab[1] * cd[0] == 0
 
-        # all segments should be either vertical or horizontal
-        horizontal = sorted(s for s in segments if s[0][0] == s[1][0])
-        vertical = sorted([s for s in segments if s[0][1] == s[1][1]],
-                          key=lambda x: (x[0][1], x[0][0]))  # sorted according to Y first
         final = []
-
-        s = horizontal.pop(0)
-        for next_seg in horizontal:
-            if s[1] == next_seg[0]:
-                s = s[0], next_seg[1]
+        # reverse to avoid poping from left
+        segments = sorted(segments, reverse=True)
+        s = segments.pop()
+        # we merge all segments that have the same end but only when there's only only two that share to avoid crosses
+        while segments:
+            # only one that share end
+            if len(start_dict[s[1]]) == 1:
+                other = start_dict[s[1]][0]
+                if same_orientation(s, other):
+                    s = s[0], other[1]
+                    segments.remove(other)
+                else:
+                    final.append(s)
+                    s = segments.pop()
             else:
                 final.append(s)
-                s = next_seg
-        final.append(s)
-
-        s = vertical.pop(0)
-        for next_seg in vertical:
-            if s[1] == next_seg[0]:
-                s = s[0], next_seg[1]
-            else:
-                final.append(s)
-                s = next_seg
+                s = segments.pop()
         final.append(s)
 
         # scale everything right
