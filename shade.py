@@ -153,8 +153,8 @@ class App:
         self.player.update()
 
     def render(self, surf):
-        # surf.fill(SKY_COLOR)
-        surf.blit(self.bg, (0, 0))
+        surf.fill(SKY_COLOR)
+        # surf.blit(self.bg, (0, 0))
 
         # Platforms
         self.map.render(surf)
@@ -162,7 +162,7 @@ class App:
         # Player
         self.player.render(surf)
 
-        if self.DEBUG:
+        if self.DEBUG and not self.ENABLE_SHADOW:
             # segments that block the light
             for a, b in self.map.light_blockers():
                 color = random_cached_color(a, b)

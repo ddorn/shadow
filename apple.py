@@ -9,8 +9,10 @@ from typing import Dict, List
 import pygame
 from graphalama.app import Screen, App
 from graphalama.buttons import CarouselSwitch, Button
+from graphalama.core import Widget
 
-from physics import AABB
+from maths import clamp, approx
+from physics import AABB, Pos
 
 
 class Tile:
@@ -50,26 +52,28 @@ class Tile:
         return  self.sprite_sheet.subsurface((pos, size))
 
     def get_image(self, neighbours=()):
-        tile_name = neighbours[0][0]
         pos = (1, 1)
-        for Y, line in enumerate(self.neighbours_patterns):
-            for X, pattern in enumerate(line):
-                match = True
-                for x in range(3):
-                    for y in range(3):
-                        c = pattern[3 * y + x]
-                        if c == '=':
-                            if neighbours[x - 1][y - 1] != tile_name:
-                                match = False
-                        elif c == ' ':
-                            if neighbours[x - 1][y - 1] == tile_name:
-                                match = False
-                        elif c == '?':
-                            # any tile will do
-                            pass
 
-                if match:
-                    pos = X, Y
+        if neighbours:
+            tile_name = neighbours[0][0]
+            for Y, line in enumerate(self.neighbours_patterns):
+                for X, pattern in enumerate(line):
+                    match = True
+                    for x in range(3):
+                        for y in range(3):
+                            c = pattern[3 * y + x]
+                            if c == '=':
+                                if neighbours[x - 1][y - 1] != tile_name:
+                                    match = False
+                            elif c == ' ':
+                                if neighbours[x - 1][y - 1] == tile_name:
+                                    match = False
+                            elif c == '?':
+                                # any tile will do
+                                pass
+
+                    if match:
+                        pos = X, Y
 
         img = self.get_tile_from_sheet(pos)
         return pygame.transform.scale(img, (self.tile_size, self.tile_size))
@@ -81,6 +85,8 @@ class TileMap:
     tile_size: int
 
     def __init__(self, tile_objects=None, tiles=None, tile_size=16):
+        self.scale = 4
+        self.render_topleft = (0, 0)
         self.tile_size = tile_size
         self.tiles = tiles if tiles is not None else {}
         self.tile_objects = tile_objects if tile_objects is not None else []
@@ -101,6 +107,13 @@ class TileMap:
     def tile_at_world_pos(self, world_pos):
         world_pos = self.world_pos_to_map(world_pos)
         return self.tile_at_map_pos(world_pos)
+
+    def map_to_display_pos(self, map_pos):
+        return Pos(self.map_to_world_pos(map_pos)) * self.scale + self.render_topleft
+
+    def display_to_map_pos(self, display_pos):
+        return self.world_pos_to_map((Pos(display_pos) - self.render_topleft) // self.scale)
+
 
     def save(self, file='assets/levels/0'):
         tile_paths = [tile.file_path for tile in self.tile_objects]
@@ -278,9 +291,11 @@ class TileMap:
             if tile.transparent:
                 continue
             img = self.get_image_at(pos, scale)
-            topleft = self.map_to_world_pos(pos)
-            topleft = topleft[0] + offset[0], topleft[1] + offset[1]
+            topleft = Pos(self.map_to_world_pos(pos)) * scale + offset + self.render_topleft
             surf.blit(img, topleft)
+
+
+EDIT = 1
 
 
 class EditScreen(Screen):
@@ -288,12 +303,14 @@ class EditScreen(Screen):
     ERASER = 2
 
     def __init__(self, app):
-
+        self.menu_width = 240
         # widgets
-        self.tool_carousel = CarouselSwitch(["Brush", "Eraser"], self.tool_change, (20, 20))
+        self.widget_bg = Widget((0, 0), (self.menu_width, app.SCREEN_SIZE[0]), bg_color=(200, 200, 200))
+        self.tool_carousel = CarouselSwitch(["Brush", "Eraser"],  self.tool_change, (20, 20),
+                                            shape=(self.menu_width - 40, 40))
         reset = Button("Reset", self.reset, bg_color=(240, 100, 60))
         save = Button("Save", self.save)
-        widgets = (self.tool_carousel, reset, save)
+        widgets = (self.widget_bg, self.tool_carousel, reset, save)
         super().__init__(app, widgets, (20, 40, 90))
 
         # map
@@ -304,12 +321,22 @@ class EditScreen(Screen):
             print("Cannot load map")
             self.map = TileMap()
             self.map.add_new_tile_type("assets/dirt_sheet.png")
+        self.map.render_topleft = self.menu_width, 0
         self._tile_index = 0
 
         # editor settings
         self.scale = 4
         self.drawing = False
         self.tool = self.BRUSH
+
+    @property
+    def scale(self):
+        return self._scale
+
+    @scale.setter
+    def scale(self, value):
+        self._scale = clamp(value, 1, 10)
+        self.map.scale = self._scale
 
     @property
     def tile_index(self):
@@ -335,7 +362,9 @@ class EditScreen(Screen):
         elif event.type == pygame.MOUSEBUTTONUP:
             self.drawing = False
         elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_r:
+            if event.key == pygame.K_ESCAPE:
+                self.app.quit()
+            elif event.key == pygame.K_r:
                 self.reset()
             elif event.key == pygame.K_s:
                 self.save()
@@ -343,11 +372,15 @@ class EditScreen(Screen):
                 self.tool_carousel.option_index = self.tool_carousel.options.index("Brush")
             elif event.key == pygame.K_e:
                 self.tool_carousel.option_index = self.tool_carousel.options.index("Eraser")
+            elif event.key == pygame.K_MINUS:
+                self.scale = min(self.scale - 1, 1)
+            elif event.key == pygame.K_PLUS:
+                self.scale += 1
 
     def internal_logic(self):
         if self.drawing:
             pos = pygame.mouse.get_pos()
-            pos = self.screen_to_pos(pos)
+            pos = self.map.display_to_map_pos(pos)
 
             if self.tool == self.BRUSH:
                 self.map.add_tile(pos, self.tile_index)
@@ -357,20 +390,17 @@ class EditScreen(Screen):
     def render(self, display):
         self.draw_background(display)
 
-        # draw tiles
-        for pos in self.map.tiles:
-            image = self.map.get_image_at(pos, self.scale)
-            display.blit(image, self.pos_to_screen(pos))
+        self.map.render(display, self.scale)
+
+        # cursor
+        img = self.current_tile.get_image()
+        img = pygame.transform.scale(img, (self.tile_size * self.scale, ) *2)
+        img.set_alpha(128)
+        pos = self.map.map_to_display_pos(self.map.display_to_map_pos(pygame.mouse.get_pos()))
+        print(pos)
+        display.blit(img, approx(pos))
 
         self.widgets.render(display)
-
-    def pos_to_screen(self, pos):
-        tot_scale = self.tile_size * self.scale
-        return pos[0] * tot_scale, pos[1] * tot_scale
-
-    def screen_to_pos(self, screen):
-        tot_scale = self.tile_size * self.scale
-        return screen[0] // tot_scale, screen[1] // tot_scale
 
     def reset(self):
         self.map.tiles.clear()
@@ -378,7 +408,6 @@ class EditScreen(Screen):
     def save(self):
         self.map.save()
 
-EDIT = 1
 
 class Apple(App):
     SCREEN_SIZE = (1600, 1008)

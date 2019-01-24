@@ -1,12 +1,11 @@
-from collections import deque
 from random import random
 from time import time
 
 import pygame
 
 from entities import LightParticle
-from light import Light, RainbowLight
-from maths import Pos, clamp, approx
+from light import Light
+from maths import Pos, clamp
 from physics import Body, AABB
 
 MAX_PLAYER_SPEED = (3, 6)
@@ -20,12 +19,14 @@ HOVERING_GRAVITY_FACTOR = 0.5
 # LIGHT_COLOR = (255, 130, 80)
 LIGHT_COLOR = (100, ) * 3
 LIGHT_PIERCING = 5
-SIGHT = 200
+SIGHT = 69
 LIGHT_EMIT_DELAY = 10
 LIGHT_LIFE_TIME = 10
 
 
 class Player:
+    building_fire: LightParticle
+
     def __init__(self):
 
         # image and shape
@@ -42,6 +43,10 @@ class Player:
         self.hovering = False
         self.wall_jump = 0
         self.jump_frames = 0
+        self.firing = False
+        self.fire_time = 0
+        self.building_fire = None
+        self.raffale = False
 
         self.body = Body(shape, max_velocity=MAX_PLAYER_SPEED, moving=True)
 
@@ -79,6 +84,12 @@ class Player:
                     self.jumping = False
                     self.wall_jump = -1
                     self.body.velocity = Pos(-WALLJUMP_IMPULSE[0], WALLJUMP_IMPULSE[1])
+            elif e.key == pygame.K_w:
+                self.firing = True
+                self.fire_time = time()
+                self.building_fire = LightParticle(self.light_pos, range=15)
+            elif e.key == pygame.K_d:
+                self.raffale = True
             elif e.key == pygame.K_LEFT:
                 self.direction[0] = True
             elif e.key == pygame.K_RIGHT:
@@ -94,6 +105,13 @@ class Player:
                 self.direction[0] = False
             elif e.key == pygame.K_RIGHT:
                 self.direction[1] = False
+            elif e.key == pygame.K_w:
+                self.fire()
+                self.firing = False
+                self.fire_time = None
+            elif e.key == pygame.K_d:
+                self.raffale = False
+                self.raffle_fire()
 
     def update(self):
         self.light.center = self.light_pos
@@ -129,26 +147,48 @@ class Player:
         self.body.acceleration.y -= ay
 
         # Lights
-        if time() - self.last_light_emit_time > LIGHT_EMIT_DELAY:
-            self.last_light_emit_time = time()
-            velocity = self.body.velocity + (random() - 1/2, random() - 1/2)
-            light = LightParticle(self.light_pos, velocity, life_time=LIGHT_LIFE_TIME)
-            self.lights.append(light)
-            self.body.space.add(light)
+        if self.raffale:
+            if self.building_fire is None:
+                self.building_fire = LightParticle(self.light_pos, range=15)
+            elif self.building_fire.range > 40:
+                self.raffle_fire()
+                self.building_fire = LightParticle(self.light_pos, range=15)
+            else:
+                self.building_fire.range += 4
+            self.building_fire.center = self.light_pos
+
+        elif self.building_fire:
+            self.building_fire.range = round(min(time() - self.fire_time, 1) * 50) + 10
+            self.building_fire.center = self.light_pos
+
         for l in self.lights[:]:
             l.update()
-            if l.range < 2:
+            if l.range < 3:
                 self.lights.remove(l)
-                l.space.moving_bodies.remove(l)
-            else:
-                # add a spring between the light and the player
-                spring_origin = self.light_pos + Pos(20, 0) * (2*self.looking_left - 1)  # 20 px behind player
-                r = l.center - spring_origin
-                v = l.velocity
+                self.body.space.moving_bodies.remove(l)
 
-                # -kr - bv  #physicsclass
-                l.acceleration += -0.01 * r - 0.05 * v
 
+
+        if False:
+            if time() - self.last_light_emit_time > LIGHT_EMIT_DELAY:
+                self.last_light_emit_time = time()
+                velocity = self.body.velocity + (random() - 1/2, random() - 1/2)
+                light = LightParticle(self.light_pos, velocity, life_time=LIGHT_LIFE_TIME)
+                self.lights.append(light)
+                self.body.space.add(light)
+            for l in self.lights[:]:
+                l.update()
+                if l.range < 2:
+                    self.lights.remove(l)
+                    l.space.moving_bodies.remove(l)
+                else:
+                    # add a spring between the light and the player
+                    spring_origin = self.light_pos + Pos(20, 0) * (2*self.looking_left - 1)  # 20 px behind player
+                    r = l.center - spring_origin
+                    v = l.velocity
+
+                    # -kr - bv  #physicsclass
+                    l.acceleration += -0.01 * r - 0.05 * v
     def get_rect(self):
         return self.body.shape.pygame_rect
 
@@ -160,5 +200,29 @@ class Player:
         return pygame.transform.rotate(self.img, angle)
 
     def get_all_lights(self):
-        return [self.light, *self.lights]
+        ret = [self.light, *self.lights]
+        if self.building_fire:
+            ret.append(self.building_fire)
+        return ret
+
+    def fire(self):
+        if not self.building_fire:
+            return
+
+        if not self.building_fire.velocity:
+            vx = self.body.velocity.x - 10*(self.looking_left * 2 - 1)
+            self.building_fire.velocity = Pos(vx, random() / 5 - 0.1)
+        if not self.building_fire.life_time:
+            self.building_fire.life_time = self.building_fire.range / 30
+        self.lights.append(self.building_fire)
+        self.body.space.add(self.building_fire)
+        self.building_fire = None
+
+    def raffle_fire(self):
+        if not self.building_fire:
+            return
+        vx = -6 * (2 * self.looking_left - 1), 3*random() - 2
+        self.building_fire.velocity = self.body.velocity + vx
+        self.building_fire.life_time = 0.4
+        self.fire()
 
