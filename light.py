@@ -10,7 +10,6 @@ from scipy.stats import truncnorm
 
 from maths import expand_poly, clip_poly_to_rect
 
-MIN_SHADOW = 50
 GAUSSIAN = 42
 QUADRATIC = 2
 
@@ -55,9 +54,6 @@ class Light:
         if self.piercing:
             visible_poly = expand_poly(visible_poly, self.center, self.piercing)
 
-        # We center the polygon on (0, 0)
-        # visible_poly = [(p[0] - self.center[0], p[1] - self.center[1]) for p in visible_poly]
-
         self.alpha = self.visible_mask(visible_poly)
 
     @staticmethod
@@ -91,19 +87,19 @@ class Light:
     @lru_cache()
     def compute_quad_light_mask(radius, variant=0):
 
-        s = pygame.Surface((2*radius, 2*radius))
-        for r in range(radius - 2, 1, -1):
-            intensity = 255 * (1 - (r/radius)**2)
-            # intensity = 255 * (1 - r / radius)
-            pygame.draw.circle(s, (intensity, 0, 0), (radius, radius), r)
+        s = pygame.Surface((2 * radius, 2 * radius))
+        # for r in range(radius - 4, 1, -1):
+        #     intensity = 255 * (1 - (r/radius)**2)
+        # intensity = 255 * (1 - r / radius)
+        # pygame.draw.circle(s, (intensity, 0, 0), (radius, radius), r)
+        pygame.draw.circle(s, (255, 0, 0), (radius, radius), radius // 2)
 
         mask = pygame.surfarray.pixels_red(s)
 
         # We blur everything so light pixels are not alone
-        mask = scipy.ndimage.filters.gaussian_filter(mask, 2)
+        mask = scipy.ndimage.filters.gaussian_filter(mask, radius / 4)
 
         return mask
-
 
     @property
     def light_mask(self):
@@ -149,7 +145,9 @@ class Light:
         # and we blur it for a bleeding / bloom effect
         # Gaussian blur is better looking but too complex to use often on big surfaces
 
-        light_mask = scipy.ndimage.uniform_filter(light_mask, self.range // 10)
+        # I think it is better to just blur the whole global mask, but if not, just uncomment hose two lines
+        # blur = max(self.range // 8, 2)
+        # light_mask = scipy.ndimage.gaussian_filter(light_mask, blur)
         return light_mask
 
     def get_surf_mask(self):
@@ -184,13 +182,13 @@ class Light:
         return 2 * self.range, 2 * self.range
 
 
-
 class RainbowLight(Light):
-    def __init__(self, center, hue_start: "Between 0 and 1" = 0, loop_time=5, range=120, piercing=0, variants=1):
+    def __init__(self, center, hue_start: "Between 0 and 1" = 0, loop_time=5, range=120, piercing=0, variants=1,
+                 light_shape=QUADRATIC):
         self.start = time()
         self.loop_time = loop_time
         self.hue_start = hue_start
-        super().__init__(center, self.color, range, piercing, variants)
+        super().__init__(center, self.color, range, piercing, variants, light_shape)
 
     @property
     def color(self):
@@ -208,7 +206,7 @@ class RainbowLight(Light):
 class GlobalLightMask:
     """Base class that take care of merging all the lights together."""
 
-    def __init__(self, lights, size, shadow_caster):
+    def __init__(self, lights, size, shadow_caster, minimum_light=(0, 0, 0), blur=10):
         """
         Light combiner and renderer.
 
@@ -218,10 +216,13 @@ class GlobalLightMask:
         :param size: The total of the surface where the lights have effect. This is usually the screensize.
         :param shadow_caster: A ShadowCaster object, containing the description of all the walls where
             the light is blocked.
+        :param minimum_light: ambient light, useful to have wall that are not pure black
         """
 
         self.lights = lights
         self.size = size
+        self.minimum_light = minimum_light
+        self.blur = blur
         self.surf_mask = pygame.Surface(size)
         self.shadow_caster = shadow_caster  # type: visibility.VisibiltyCalculator
 
@@ -238,12 +239,17 @@ class GlobalLightMask:
             light.update_mask(visible_poly)
 
         # reset the mask
-        self.surf_mask.fill((MIN_SHADOW, MIN_SHADOW, MIN_SHADOW))
+        self.surf_mask.fill(self.minimum_light)
 
         # add them all
         for light in self.lights:
             # light is additive
             self.surf_mask.blit(light.get_surf_mask(), light.topleft, None, pygame.BLEND_RGB_ADD)
+
+        if self.blur:
+            pix = pygame.surfarray.pixels3d(self.surf_mask)
+            for axis in range(3):
+                pix[:,:,axis] = scipy.ndimage.uniform_filter(pix[:,:,axis], self.blur)
 
     def apply_light_on(self, surf, offset=(0, 0)):
         """

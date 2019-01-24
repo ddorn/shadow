@@ -6,7 +6,7 @@ import pygame
 
 from entities import LightParticle
 from light import Light, RainbowLight
-from maths import Pos, clamp
+from maths import Pos, clamp, approx
 from physics import Body, AABB
 
 MAX_PLAYER_SPEED = (3, 6)
@@ -18,23 +18,23 @@ WALK_ACCELERATION = 0.2
 WALLJUMP_IMPULSE = (3, -3.5)
 HOVERING_GRAVITY_FACTOR = 0.5
 # LIGHT_COLOR = (255, 130, 80)
-LIGHT_COLOR = (100, 100, 100)
+LIGHT_COLOR = (200, ) * 3
 LIGHT_PIERCING = 5
-SIGHT = 69
-LIGHT_EMIT_DELAY = 1/2
-NB_LIGHT = 10
+SIGHT = 200
+LIGHT_EMIT_DELAY = 10
+LIGHT_LIFE_TIME = 10
 
 
 class Player:
     def __init__(self):
 
         # image and shape
-        img = pygame.image.load("assets/korn.png").convert()
-        img.set_colorkey((255, 0, 255))
+        img = pygame.image.load("assets/wizzard.png").convert_alpha()
+        # img.set_colorkey((255, 0, 255))
         self._img = img
         self._img_flipped = pygame.transform.flip(img, True, False)
-        self.sprite_offset = (0, 0)
-        shape = AABB((42, 8), (13, 16))
+        self.sprite_offset = (1, 0)
+        shape = AABB((42, 8), (16, 26))
 
         self.direction = [False, False]
         self.looking_left = True
@@ -59,7 +59,10 @@ class Player:
     @property
     def light_pos(self):
         r = self.get_rect()
-        return r.center  # + Pos(0, r.h/4)
+        if self.looking_left:
+            return r.topleft + Pos(1, 7)
+        else:
+            return r.topright + Pos(-3, 7)
 
     def event_loop(self, e):
         if e.type == pygame.KEYDOWN:
@@ -129,7 +132,7 @@ class Player:
         if time() - self.last_light_emit_time > LIGHT_EMIT_DELAY:
             self.last_light_emit_time = time()
             velocity = self.body.velocity + (random() - 1/2, random() - 1/2)
-            light = LightParticle(self.light_pos, velocity, life_time=10)
+            light = LightParticle(self.light_pos, velocity, life_time=LIGHT_LIFE_TIME)
             self.lights.append(light)
             self.body.space.add(light)
         for l in self.lights[:]:
@@ -137,23 +140,21 @@ class Player:
             if l.range < 2:
                 self.lights.remove(l)
                 l.space.moving_bodies.remove(l)
+            else:
+                # add a spring between the light and the player
+                spring_origin = self.light_pos + Pos(20, 0) * (2*self.looking_left - 1)  # 20 px behind player
+                r = l.center - spring_origin
+                v = l.velocity
 
-
-        # add a spring to the first light
-        # l: LightParticle = self.lights[0]
-        # r = self.body.center - l.center
-        # l0 = r.normalise() * 10
-        # r -= l0
-        # if r.norm() < 10:
-        #     l.velocity /= 1.05
-        #
-        # l.acceleration += 0.01 * r
+                # -kr - bv  #physicsclass
+                l.acceleration += -0.01 * r - 0.05 * v
 
     def get_rect(self):
         return self.body.shape.pygame_rect
 
     def render(self, display: pygame.Surface):
         display.blit(self.img, self.body.shape.topleft - self.sprite_offset)
+        # display.set_at(approx(self.light_pos), rainbow)
 
     def get_rotated(self, angle: int) -> pygame.Surface:
         return pygame.transform.rotate(self.img, angle)

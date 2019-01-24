@@ -19,8 +19,8 @@ from vfx import POLY
 pygame.init()
 
 BLOCK_SIZE = 16
-GAME_SIZE = (480, 270)
 SCREEN_SIZE = pygame.display.list_modes()[0]
+GAME_SIZE = (480, 270)
 SKY_COLOR = (255, 255, 255)
 SHADOW_POLY_EXTEND = 5
 GRAVITY = (0, 0.2)

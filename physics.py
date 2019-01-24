@@ -29,7 +29,7 @@ class Pos:
         yield self.y
 
     def __bool__(self):
-        return self.x and self.y
+        return bool(self.x and self.y)
 
     def __eq__(self, other):
         return self.x == other[0] and self.y == other[1]
